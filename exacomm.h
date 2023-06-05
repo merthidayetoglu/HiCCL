@@ -29,7 +29,25 @@ namespace ExaComm {
     int const recvid;
 
     P2P(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvid(recvid) {};
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvid(recvid) {}
+  };
+
+  template <typename T>
+  struct BCAST {
+    public:
+    T* const sendbuf;
+    const size_t sendoffset;
+    T* const recvbuf;
+    const size_t recvoffset;
+    const size_t count;
+    const int sendid;
+    std::vector<int> recvid;
+
+    BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, const int numrecv, int recvid[])
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) {
+      for(int p = 0; p < numrecv; p++)
+        this->recvid.push_back(recvid[p]);
+    }
   };
 
   template <typename T>
@@ -38,6 +56,7 @@ namespace ExaComm {
     const MPI_Comm &comm_mpi;
 
     std::vector<P2P<T>> addlist;
+    std::vector<BCAST<T>> bcastlist;
     std::vector<CommBench::Comm<T>> comm_intra;
     std::vector<CommBench::Comm<T>> comm_inter;
     std::vector<CommBench::Comm<T>> comm_split;
@@ -196,12 +215,18 @@ namespace ExaComm {
     }
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      addlist.push_back(ExaComm::P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      //addlist.push_back(ExaComm::P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, 1, &recvid));
+    }
+
+    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int numrecv, int recvid[]) {
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, numrecv, recvid));
     }
 
     void init_flat() {
       init_mixed(0, NULL, NULL);
     }
+
     void init_mixed(int groupsize, CommBench::library lib) {
       init_mixed(1, &groupsize, &lib);
     };
@@ -215,7 +240,6 @@ namespace ExaComm {
     void init_striped(int groupsize, CommBench::library lib) {
       init_striped(1, &groupsize, &lib);
     }
-
     void init_striped(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
       int numlevel = 2;
       int groupsize[numlevel] = {groupsize_1, groupsize_2};
@@ -223,6 +247,108 @@ namespace ExaComm {
       init_striped(numlevel, groupsize, lib);
     }
 
+    void init_bcast(int groupsize, CommBench::library lib) {
+
+      int myid;
+      int numproc;
+      MPI_Comm_rank(comm_mpi, &myid);
+      MPI_Comm_size(comm_mpi, &numproc);
+
+      comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib));
+
+      std::vector<BCAST<T>> bcast_inter;
+
+      for(auto &bcast : bcastlist) {
+        int numrecv_inter = 0;
+        int recvid_inter[bcast.recvid.size()];
+        int sendid = bcast.sendid;
+        for(auto &recvid : bcast.recvid) {
+          if(sendid / groupsize == recvid / groupsize) {
+            if(myid == ROOT)
+              printf("level 1 ");
+            comm_intra[0].add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
+          }
+          else {
+            if(myid == ROOT)
+              printf("level 0  *  (%d -> %d) sendoffset %lu recvoffset %lu count %lu \n", sendid, recvid, bcast.sendoffset, bcast.recvoffset, bcast.count);
+            recvid_inter[numrecv_inter] = recvid;
+            numrecv_inter++;
+          }
+        }
+        bcast_inter.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, numrecv_inter, recvid_inter));
+      }
+      if(myid == ROOT) {
+        printf("* to be splitted and broadcasted\n");
+        printf("\n");
+      }
+
+      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
+      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
+
+      int mygroup = myid / groupsize;
+      int numgroup = numproc / groupsize;
+
+      for(auto &bcast : bcast_inter) {
+        int sendid = bcast.sendid;
+        int sendgroup = bcast.sendid / groupsize;
+        size_t splitcount = bcast.count / groupsize;
+        T *sendbuf_temp;
+        T *recvbuf_temp;
+        // SENDING GROUP
+        if(bcast.recvid.size()) {
+#ifdef PORT_CUDA
+          if(mygroup == sendgroup) {
+            cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
+            sendbuf_inter.push_back(sendbuf_temp);
+          }
+#elif PORT_HIP
+#endif
+	  for(int p = 0; p < groupsize; p++) {
+            if(myid == ROOT)
+              printf("split ");
+            int recvid = sendgroup * groupsize + p;
+            comm_split[0].add(bcast.sendbuf, bcast.sendoffset + p * splitcount, sendbuf_temp, 0, splitcount, sendid, recvid);
+          }
+        }
+	// AUXILIARY DATA STRUCTURES
+        int numrecv_group[numgroup];
+        int recvproc_group[numgroup][bcast.recvid.size()];
+        memset(numrecv_group, 0, numgroup * sizeof(int));
+        for(auto &recvid : bcast.recvid) {
+          int recvgroup = recvid / groupsize;
+          recvproc_group[recvgroup][numrecv_group[recvgroup]] = recvid;
+          numrecv_group[recvgroup]++;
+        }
+	// RECEIVING GROUPS
+        for(int g = 0; g < numgroup; g++) {
+          if(numrecv_group[g]) {
+#ifdef PORT_CUDA
+            if(g == mygroup) {
+              cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
+              recvbuf_inter.push_back(recvbuf_temp);
+	    }
+#elif PORT_HIP
+#endif
+            for(int p = 0; p < groupsize; p++) {
+              if(myid == ROOT)
+                printf("inter ");
+              int recvid = g * groupsize + p;
+              int sendid = sendgroup * groupsize + p;
+              comm_inter[0].add(sendbuf_temp, 0, recvbuf_temp, 0, splitcount, sendid, recvid);
+            }
+            for(int pp = 0; pp < numrecv_group[g]; pp++) {
+              if(myid == ROOT)
+                printf("merge ");
+              int recvid = recvproc_group[g][pp];
+              for(int p = 0; p < groupsize; p++) {
+                int sendid = g * groupsize + p;
+                comm_merge[0].add(recvbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + p * splitcount, splitcount, sendid, recvid);
+	      }   
+            }
+          }
+        }
+      }
+    }
     void run() {
       start();
       wait();

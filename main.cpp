@@ -129,19 +129,29 @@ int main(int argc, char *argv[])
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
-      case 4:
-        for(int p = 0; p < numproc; p++)
-          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
+      case 4: {
+        // for(int p = 0; p < numproc; p++)
+        //  bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
+	int recvid[numproc];
+        for(int p = 0 ; p < numproc; p++)
+          recvid[p] = p;
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);
         break;
+      }
       case 5:
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
             bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
       case 7:
-        for(int sender = 0; sender < numproc; sender++)
-          for(int recver = 0; recver < numproc; recver++)
-            bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+        for(int sender = 0; sender < numproc; sender++) {
+          // for(int recver = 0; recver < numproc; recver++)
+          //  bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+          int recvid[numproc];    
+          for(int p = 0 ; p < numproc; p++)
+            recvid[p] = p;
+          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
+	}
         break;
     }
 
@@ -151,6 +161,8 @@ int main(int argc, char *argv[])
       bench.init_mixed(4, CommBench::IPC);
     if(optimization == 2)
       bench.init_striped(4, CommBench::IPC);
+    if(optimization == 3)
+      bench.init_bcast(4, CommBench::IPC);
 
     bench.measure(warmup, numiter);
 
