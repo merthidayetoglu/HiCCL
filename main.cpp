@@ -71,9 +71,10 @@ int main(int argc, char *argv[])
   // INPUT PARAMETERS
   int library = atoi(argv[1]);
   int pattern = atoi(argv[2]);
-  size_t count = atol(argv[3]);
-  int warmup = atoi(argv[4]);
-  int numiter = atoi(argv[5]);
+  int optimization = atoi(argv[3]);
+  size_t count = atol(argv[4]);
+  int warmup = atoi(argv[5]);
+  int numiter = atoi(argv[6]);
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -86,6 +87,7 @@ int main(int argc, char *argv[])
 
     printf("Library: %d\n", library);
     printf("Pattern: %d\n", pattern);
+    printf("Optimization: %d\n", optimization);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -113,10 +115,16 @@ int main(int argc, char *argv[])
 #endif
 
   {
-
     ExaComm::Comm<Type> bench(MPI_COMM_WORLD, (CommBench::library) library);
 
     switch (pattern) {
+      case 0:
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, 0, 4);
+        break;
+      case 1:
+        for(int p = 0; p < numproc; p++)
+          bench.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
+        break;
       case 2:
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
@@ -130,10 +138,19 @@ int main(int argc, char *argv[])
           for(int recver = 0; recver < numproc; recver++)
             bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
+      case 7:
+        for(int sender = 0; sender < numproc; sender++)
+          for(int recver = 0; recver < numproc; recver++)
+            bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+        break;
     }
-    // bench.init_flat();
-    bench.init_mixed(4, CommBench::IPC);
-    // bench.init(4, 1, CommBench::MPI, CommBench::MPI);
+
+    if(optimization == 0)
+      bench.init_flat();
+    if(optimization == 1)
+      bench.init_mixed(4, CommBench::IPC);
+    if(optimization == 2)
+      bench.init_striped(4, CommBench::IPC);
 
     bench.measure(warmup, numiter);
 
