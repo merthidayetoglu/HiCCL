@@ -82,6 +82,7 @@ namespace ExaComm {
         comm.run();
     }
 
+
     /*void init_striped(int numlevel, int groupsize[], CommBench::library lib[]) {
 
       int myid;
@@ -215,7 +216,7 @@ namespace ExaComm {
     }
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      //addlist.push_back(ExaComm::P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      addlist.push_back(ExaComm::P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, 1, &recvid));
     }
 
@@ -230,22 +231,6 @@ namespace ExaComm {
     void init_mixed(int groupsize, CommBench::library lib) {
       init_mixed(1, &groupsize, &lib);
     };
-    /*void init_mixed(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
-      int numlevel = 2;
-      int groupsize[numlevel] = {groupsize_1, groupsize_2};
-      CommBench::library lib[numlevel] = {lib_1, lib_2};
-      init_mixed(numlevel, groupsize, lib);
-    }*/
-
-    /*void init_striped(int groupsize, CommBench::library lib) {
-      init_striped(1, &groupsize, &lib);
-    }
-    void init_striped(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
-      int numlevel = 2;
-      int groupsize[numlevel] = {groupsize_1, groupsize_2};
-      CommBench::library lib[numlevel] = {lib_1, lib_2};
-      init_striped(numlevel, groupsize, lib);
-    }*/
 
     void init_bcast(int groupsize, CommBench::library lib) {
 
@@ -255,8 +240,6 @@ namespace ExaComm {
       MPI_Comm_size(comm_mpi, &numproc);
 
       comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib));
-      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
-      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
 
       std::vector<BCAST<T>> bcast_inter;
 
@@ -283,6 +266,9 @@ namespace ExaComm {
         printf("* to be splitted and broadcasted\n");
         printf("\n");
       }
+
+      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
+      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
 
       int mygroup = myid / groupsize;
       int numgroup = numproc / groupsize;
