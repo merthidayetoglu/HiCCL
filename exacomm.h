@@ -82,7 +82,7 @@ namespace ExaComm {
         comm.run();
     }
 
-    void init_striped(int numlevel, int groupsize[], CommBench::library lib[]) {
+    /*void init_striped(int numlevel, int groupsize[], CommBench::library lib[]) {
 
       int myid;
       int numproc;
@@ -134,7 +134,7 @@ namespace ExaComm {
           cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
 	  recvbuf_inter.push_back(recvbuf_temp);
         }
-#elif PORT_HIP
+#elif defined PORT_HIP
 #endif
         for(int p = 0; p < groupsize[0]; p++) {
           int recver = sendgroup * groupsize[0] + p;
@@ -175,7 +175,7 @@ namespace ExaComm {
         printf("* pruned\n");
         printf("\n");
       }
-    }
+    }*/
 
     void init_mixed(int numlevel, int groupsize[], CommBench::library lib[]) {
 
@@ -230,14 +230,14 @@ namespace ExaComm {
     void init_mixed(int groupsize, CommBench::library lib) {
       init_mixed(1, &groupsize, &lib);
     };
-    void init_mixed(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
+    /*void init_mixed(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
       int numlevel = 2;
       int groupsize[numlevel] = {groupsize_1, groupsize_2};
       CommBench::library lib[numlevel] = {lib_1, lib_2};
       init_mixed(numlevel, groupsize, lib);
-    }
+    }*/
 
-    void init_striped(int groupsize, CommBench::library lib) {
+    /*void init_striped(int groupsize, CommBench::library lib) {
       init_striped(1, &groupsize, &lib);
     }
     void init_striped(int groupsize_1, int groupsize_2, CommBench::library lib_1, CommBench::library lib_2) {
@@ -245,7 +245,7 @@ namespace ExaComm {
       int groupsize[numlevel] = {groupsize_1, groupsize_2};
       CommBench::library lib[numlevel] = {lib_1, lib_2};
       init_striped(numlevel, groupsize, lib);
-    }
+    }*/
 
     void init_bcast(int groupsize, CommBench::library lib) {
 
@@ -255,6 +255,8 @@ namespace ExaComm {
       MPI_Comm_size(comm_mpi, &numproc);
 
       comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib));
+      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
+      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
 
       std::vector<BCAST<T>> bcast_inter;
 
@@ -282,9 +284,6 @@ namespace ExaComm {
         printf("\n");
       }
 
-      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
-      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
-
       int mygroup = myid / groupsize;
       int numgroup = numproc / groupsize;
 
@@ -296,13 +295,14 @@ namespace ExaComm {
         T *recvbuf_temp;
         // SENDING GROUP
         if(bcast.recvid.size()) {
-#ifdef PORT_CUDA
           if(mygroup == sendgroup) {
+#ifdef PORT_CUDA
             cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
+#elif defined PORT_HIP
+            hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
+#endif
             sendbuf_inter.push_back(sendbuf_temp);
           }
-#elif PORT_HIP
-#endif
 	  for(int p = 0; p < groupsize; p++) {
             if(myid == ROOT)
               printf("split ");
@@ -322,13 +322,14 @@ namespace ExaComm {
 	// RECEIVING GROUPS
         for(int g = 0; g < numgroup; g++) {
           if(numrecv_group[g]) {
-#ifdef PORT_CUDA
             if(g == mygroup) {
+#ifdef PORT_CUDA
               cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#elif defined PORT_HIP
+              hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#endif
               recvbuf_inter.push_back(recvbuf_temp);
 	    }
-#elif PORT_HIP
-#endif
             for(int p = 0; p < groupsize; p++) {
               if(myid == ROOT)
                 printf("inter ");

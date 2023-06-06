@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 #include "CommBench/comm.h"
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
       case 4: {
-        // for(int p = 0; p < numproc; p++)
+        //for(int p = 0; p < numproc; p++)
         //  bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
 	int recvid[numproc];
         for(int p = 0 ; p < numproc; p++)
@@ -159,10 +159,10 @@ int main(int argc, char *argv[])
       bench.init_flat();
     if(optimization == 1)
       bench.init_mixed(4, CommBench::IPC);
-    if(optimization == 2)
-      bench.init_striped(4, CommBench::IPC);
+    // if(optimization == 2)
+      // bench.init_striped(4, CommBench::IPC);
     if(optimization == 3)
-      bench.init_bcast(4, CommBench::IPC);
+      bench.init_bcast(8, CommBench::IPC);
 
     bench.measure(warmup, numiter);
 
