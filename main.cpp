@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 #include "CommBench/comm.h"
@@ -130,12 +130,12 @@ int main(int argc, char *argv[])
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
       case 4: {
-        //for(int p = 0; p < numproc; p++)
-        //  bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
-	int recvid[numproc];
+        for(int p = 0; p < numproc; p++)
+          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
+	/*int recvid[numproc];
         for(int p = 0 ; p < numproc; p++)
           recvid[p] = p;
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);*/
         break;
       }
       case 5:
@@ -145,20 +145,21 @@ int main(int argc, char *argv[])
         break;
       case 7:
         for(int sender = 0; sender < numproc; sender++) {
-          // for(int recver = 0; recver < numproc; recver++)
-          //  bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
-          int recvid[numproc];    
+          for(int recver = 0; recver < numproc; recver++)
+            bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+          /*int recvid[numproc];    
           for(int p = 0 ; p < numproc; p++)
             recvid[p] = p;
-          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
+          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);*/
 	}
         break;
     }
 
+
     if(optimization == 0)
       bench.init_flat();
     if(optimization == 1)
-      bench.init_mixed(4, CommBench::IPC);
+      bench.init_mixed(8, CommBench::IPC);
     // if(optimization == 2)
       // bench.init_striped(4, CommBench::IPC);
     if(optimization == 3)

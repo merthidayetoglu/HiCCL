@@ -53,7 +53,7 @@ namespace ExaComm {
   template <typename T>
   class Comm {
 
-    const MPI_Comm &comm_mpi;
+    const MPI_Comm comm_mpi;
 
     std::vector<P2P<T>> addlist;
     std::vector<BCAST<T>> bcastlist;
@@ -216,7 +216,7 @@ namespace ExaComm {
     }
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      addlist.push_back(ExaComm::P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      addlist.push_back(P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, 1, &recvid));
     }
 
