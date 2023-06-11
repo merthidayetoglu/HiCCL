@@ -118,19 +118,19 @@ int main(int argc, char *argv[])
     std::vector<CommBench::Comm<Type>> inter;
     std::vector<CommBench::Comm<Type>> intra;
 
-    int frontier_numlevel = 4;
-    int frontier_groupsize[4] = {numproc, 8, 4, 2};
+    int frontier_numlevel = 2;
+    int frontier_groupsize[2] = {numproc, 8};//, 4, 2};
     CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::NCCL};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
       recvid[p] = p;
 
-    ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);
+    ExaComm::BCAST<Type> bcast(sendbuf_d, 15, recvbuf_d, myid, count, ROOT, numproc, recvid);
 
-    std::vector<CommBench::Comm<Type>> commlist[frontier_numlevel];
+    std::vector<CommBench::Comm<Type>> commtrain;
 
-    ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist, 1, (Type*)0);
+    ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commtrain, 1, (Type*) NULL);
 
   }
 
