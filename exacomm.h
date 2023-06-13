@@ -14,6 +14,7 @@
  */
 
 #include <vector>
+#include <list>
 
 
 namespace ExaComm {
@@ -48,8 +49,8 @@ namespace ExaComm {
 
     BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int numrecv, int recvid[])
     : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) {
-      for(int p = 0; p < numrecv; p++)
-        this->recvid.push_back(recvid[p]);
+      for(int i = 0; i < numrecv; i++)
+        this->recvid.push_back(recvid[i]);
     }
     void report(int id) {
       if(printid == sendid) {
@@ -87,14 +88,12 @@ namespace ExaComm {
   };
 
   template <typename T>
-  void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], BCAST<T> bcast, std::vector<CommBench::Comm<T>> &commtrain, int level, T *recvbuf) {
+  void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], BCAST<T> bcast, std::list<CommBench::Comm<T>*> &commlist, int level) {
 
     int myid;
     int numproc;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-    MPI_Comm_size(MPI_COMM_WORLD, &numproc);
-
-    printid = myid;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
 
     if(numproc != groupsize[0]) {
       printf("ERROR!!! groupsize[0] must be equal to numproc.\n");
@@ -103,81 +102,92 @@ namespace ExaComm {
 
     // REPORT PRIMITIVE BCAST TREE
     bcast.report(ROOT);
+    // CREATE COMMUNICATOR
 
     // EXIT CONDITION
     if(level == numlevel) {
       if(printid == ROOT)
         printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
-      commtrain.push_back(CommBench::Comm<T>(comm_mpi, lib[numlevel-1]));
+      CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
       for(auto recvid : bcast.recvid) {
         int sendid = bcast.sendid;
-        commtrain.back().add(recvbuf, 0, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
+        comm_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
       }
+      if(printid == ROOT)
+        printf("\n");
+      commlist.push_front(comm_temp);
       return;
     }
 
     int numgroup = numproc / groupsize[level];
     int mygroup = myid / groupsize[level];
     int sendgroup = bcast.sendid / groupsize[level];
-    if(myid == ROOT)
-      printf("level %d, numgroup %d groupsize %d sendgroup %d \n", level, numgroup, groupsize[level], sendgroup);
 
-    // ACROSS-GROUPS FIRST
+    // PUSH LOCAL COMMUNICATIONS INTO LIST HEAD
     for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
-      std::vector<int> recvids;
-      for(auto recvid : bcast.recvid) {
-        int group = recvid / groupsize[level];
-        if(group == recvgroup)
-          recvids.push_back(recvid);
-      }
-      if(recvids.size()) {
-        if(recvgroup != sendgroup) {
+      if(recvgroup == sendgroup) {
+        std::vector<int> recvids;
+        for(auto bcast_recvid : bcast.recvid) {
+          int group = bcast_recvid / groupsize[level];
+          if(group == recvgroup)
+            recvids.push_back(bcast_recvid);
+        }
+        if(recvids.size()) {
           int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-          if(printid == ROOT) {
-            printf("\n");
-            printf("sendgroup %d recvgroup %d recvid %d\n", sendgroup, recvgroup, recvid);
-          }
-          if(myid == recvid) {
-            hipMalloc(&recvbuf, bcast.count * sizeof(T));
-            printf("^^^^^^^^^^^^^^^^^^^^^^^ myid %d allocates recvbuf %p\n", myid, recvbuf);
-          }
-          commtrain.push_back(CommBench::Comm<T>(comm_mpi, lib[level-1]));
-          commtrain.back().add(bcast.sendbuf, bcast.sendoffset, recvbuf,  0, bcast.count, bcast.sendid, recvid);
-
-          BCAST<T> bcast_new(recvbuf, 0, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data());
-
-          bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_new, commtrain, level + 1, recvbuf);
+          if(printid == ROOT)
+            printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+          BCAST<T> bcast_new(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data());
+          bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_new, commlist, level + 1);
         }
       }
     }
-    // WITHIN GROUP SECOND
+     
+    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
+
+    // PUSH GLOBAL COMMUNICATIONS INTO LOST HEAD
     for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
-      std::vector<int> recvids;
-      for(auto recvid : bcast.recvid) {
-        int group = recvid / groupsize[level];
-        if(group == recvgroup)
-          recvids.push_back(recvid);
-      }
-      if(recvids.size()) {
-        if(recvgroup == sendgroup) {
+      if(recvgroup != sendgroup) {
+        std::vector<int> recvids;
+        for(auto recvid : bcast.recvid) {
+          if(recvid / groupsize[level] == recvgroup)
+            recvids.push_back(recvid);
+        }
+        if(recvids.size()) {
           int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-          if(printid == ROOT) {
-            printf("\n");
-            printf("sendgroup %d recvgroup %d recvid %d\n", sendgroup, recvgroup, recvid);
+          if(printid == ROOT)
+            printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+
+          T *recvbuf;
+          int recvoffset;
+          bool found = false;
+
+          for(auto it = recvids.begin(); it != recvids.end(); ++it) {
+            if(*it == recvid) {
+              if(printid == ROOT)
+                printf("******************************************************************************************* found recvid %d\n", *it);
+              recvbuf = bcast.recvbuf;
+              recvoffset = bcast.recvoffset;
+              found = true;
+              recvids.erase(it);
+              break;
+            }
           }
-          if(myid == recvid) {
+          if(!found && myid == recvid) {
             hipMalloc(&recvbuf, bcast.count * sizeof(T));
-            printf("^^^^^^^^^^^^^^^^^^^^^^^ myid %d allocates recvbuf %p\n", myid, recvbuf);
+            recvoffset = 0;
+            printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
           }
-          commtrain.push_back(CommBench::Comm<T>(comm_mpi, lib[level-1]));
-          commtrain.back().add(bcast.sendbuf, bcast.sendoffset, recvbuf,  0, bcast.count, bcast.sendid, recvid);
-          
-          BCAST<T> bcast_new(recvbuf, 0, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data());
-          
-          bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_new, commtrain, level + 1, recvbuf);
+
+          comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
+
+          if(recvids.size()) {
+            BCAST<T> bcast_new(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data());
+            bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_new, commlist, level + 1);
+          }
         }
       }
     }
+    commlist.push_front(comm_temp);
   }
 
   template <typename T>

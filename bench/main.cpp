@@ -38,6 +38,7 @@
 #include "../CommBench/comm.h"
 
 #include "../exacomm.h"
+#include "coll.h"
 
 void print_args();
 
@@ -49,6 +50,14 @@ void print_args();
   int data[1];
   // complex<double> x, y, z;
 };*/
+
+void *thread_function(void *dummyPtr) {
+  int *ptr = (int*) dummyPtr;
+  printf("hello from %d\n", *ptr);
+  // printf("Thread number %ld\n", pthread_self());
+  return NULL;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -70,10 +79,9 @@ int main(int argc, char *argv[])
   // INPUT PARAMETERS
   int library = atoi(argv[1]);
   int pattern = atoi(argv[2]);
-  int optimization = atoi(argv[3]);
-  size_t count = atol(argv[4]);
-  int warmup = atoi(argv[5]);
-  int numiter = atoi(argv[6]);
+  size_t count = atol(argv[3]);
+  int warmup = atoi(argv[4]);
+  int numiter = atoi(argv[5]);
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -86,7 +94,6 @@ int main(int argc, char *argv[])
 
     printf("Library: %d\n", library);
     printf("Pattern: %d\n", pattern);
-    printf("Optimization: %d\n", optimization);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -114,24 +121,35 @@ int main(int argc, char *argv[])
 #endif
 
   {
-
-    std::vector<CommBench::Comm<Type>> inter;
-    std::vector<CommBench::Comm<Type>> intra;
-
-    int frontier_numlevel = 2;
-    int frontier_groupsize[2] = {numproc, 8};//, 4, 2};
-    CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::NCCL};
+    ExaComm::printid = myid;
+    int frontier_numlevel = 3;
+    int frontier_groupsize[4] = {numproc, 8, 4, 1};
+    CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
       recvid[p] = p;
 
-    ExaComm::BCAST<Type> bcast(sendbuf_d, 15, recvbuf_d, myid, count, ROOT, numproc, recvid);
+    /*pthread_t thread_id[numproc];
+    int number = 5;
+    for(int i = 0; i < numproc; i++) {
+      pthread_create(&thread_id[i], NULL, thread_function, &number);
+    }*/
 
-    std::vector<CommBench::Comm<Type>> commtrain;
+    std::list<CommBench::Comm<Type>*> commlist;
+    for(int sender = 0; sender < numproc; sender++) {
+      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist, 1);
+    }
 
-    ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commtrain, 1, (Type*) NULL);
+    if(ExaComm::printid == ROOT)
+      printf("commlist size %lu\n", commlist.size());
 
+    //for(auto comm : commlist)
+    //  comm->measure(warmup, numiter);
+
+    measure(count * numproc, warmup, numiter, commlist);
+    validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
   }
 
 // DEALLOCATE
