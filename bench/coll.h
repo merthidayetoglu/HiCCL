@@ -6,19 +6,44 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
 
+  int numthread = -1;
+  #pragma omp parallel
+  {
+    #pragma omp master
+    numthread = omp_get_num_threads();
+  }
   double times[numiter];
   if(myid == ROOT)
-    printf("%d warmup iterations (in order):\n", warmup);
+    printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    double time = MPI_Wtime();
+    // MPI_Barrier(MPI_COMM_WORLD);
+    double time = 0; // = MPI_Wtime();
+    {
+      double time_thread[numthread];
+      #pragma omp parallel
+      {
+        #pragma omp master
+        MPI_Barrier(MPI_COMM_WORLD);
+        #pragma omp barrier
+        double time_thread = omp_get_wtime();
 
-    #pragma omp parallel for schedule(dynamic)
-    for(auto list : commlist)
+        #pragma omp for schedule(dynamic)
+        for(auto list : commlist)
+          for(auto comm : list)
+            comm->run();
+
+        time_thread[tid] = omp_get_wtime() - time_thread;
+      }
+      for(int tid = 0; tid < numthread; tid++)
+        if(time_thread[tid] > time)
+          time = time_thread[tid];
+    }
+    // #pragma omp parallel for schedule(static)
+    /*for(auto list : commlist)
       for(auto comm : list)
         comm->run();
-    time = MPI_Wtime() - time;
+    time = MPI_Wtime() - time;*/
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if(iter < 0) {

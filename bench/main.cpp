@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    int frontier_numlevel = 2;
+    int frontier_numlevel = 1;
     int frontier_groupsize[4] = {numproc, 8, 4, 2};
     CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
@@ -144,12 +144,12 @@ int main(int argc, char *argv[])
       MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
       int numt = omp_get_num_threads();
       ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, tid * count, count, tid, numproc, recvid);
-      ExaComm::bcast_tree(comm_mpi, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[tid], 1);
+      //ExaComm::bcast_tree(comm_mpi, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[tid], 1);
     }
 
     for(int tid = 0; tid < numproc; tid++) {
-      for(auto comm : commlist[tid])
-        comm->report();
+      //for(auto comm : commlist[tid])
+      //  comm->report();
       //  comm->run();
         // comm->measure(warmup, numiter);
       if(myid == ROOT)
