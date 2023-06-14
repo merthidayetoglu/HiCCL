@@ -8,42 +8,45 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
 
   int numthread = -1;
   #pragma omp parallel
-  {
-    #pragma omp master
-    numthread = omp_get_num_threads();
-  }
+  #pragma omp master
+  numthread = omp_get_num_threads();
+
   double times[numiter];
   if(myid == ROOT)
     printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
     // MPI_Barrier(MPI_COMM_WORLD);
-    double time = 0; // = MPI_Wtime();
+    /*double time = 0; // = MPI_Wtime();
     {
       double time_thread[numthread];
       #pragma omp parallel
       {
+        int tid = omp_get_thread_num();
+        int numt = omp_get_num_threads();
+        if(myid == ROOT)
+          printf("Hello from %d / %d\n", tid, numt);
+
         #pragma omp master
         MPI_Barrier(MPI_COMM_WORLD);
         #pragma omp barrier
-        double time_thread = omp_get_wtime();
+        time_thread[tid] = omp_get_wtime();
 
-        #pragma omp for schedule(dynamic)
-        for(auto list : commlist)
-          for(auto comm : list)
-            comm->run();
+        for(auto comm : commlist[tid])
+          comm->run();
 
-        time_thread[tid] = omp_get_wtime() - time_thread;
+        time_thread[tid] = omp_get_wtime() - time_thread[tid];
       }
       for(int tid = 0; tid < numthread; tid++)
         if(time_thread[tid] > time)
           time = time_thread[tid];
-    }
-    // #pragma omp parallel for schedule(static)
-    /*for(auto list : commlist)
+    }*/
+    MPI_Barrier(MPI_COMM_WORLD);
+    double time = MPI_Wtime();
+    for(auto list : commlist)
       for(auto comm : list)
         comm->run();
-    time = MPI_Wtime() - time;*/
+    time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if(iter < 0) {
@@ -134,7 +137,6 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  #pragma omp parallel for schedule(dynamic)
   for(auto list: commlist)
     for(auto comm : list)
       comm->run();

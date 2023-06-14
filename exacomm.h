@@ -173,7 +173,11 @@ namespace ExaComm {
             }
           }
           if(!found && myid == recvid) {
+#ifdef PORT_CUDA
+            cudaMalloc(&recvbuf, bcast.count * sizeof(T));
+#elif defined PORT_HIP
             hipMalloc(&recvbuf, bcast.count * sizeof(T));
+#endif
             recvoffset = 0;
             printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
           }

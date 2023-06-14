@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 // UTILITIES
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
   if(provided != MPI_THREAD_MULTIPLE) {
     printf("provide MPI_THREAD_MULTIPLE!! current provide is %d\n", provided);
+    return 0;
   }
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
@@ -123,9 +124,9 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    int frontier_numlevel = 1;
-    int frontier_groupsize[4] = {numproc, 8, 4, 2};
-    CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[3] = {numproc, 8, 4};
+    CommBench::library library[numlevel] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
@@ -138,31 +139,30 @@ int main(int argc, char *argv[])
     }*/
 
     std::vector<std::list<CommBench::Comm<Type>*>> commlist(numproc);
-    for(int tid = 0; tid < numproc; tid++)
+    for(int tid = ROOT; tid < ROOT + 1; tid++)
     {
       MPI_Comm comm_mpi;
       MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
       int numt = omp_get_num_threads();
       ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, tid * count, count, tid, numproc, recvid);
-      //ExaComm::bcast_tree(comm_mpi, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[tid], 1);
-    }
-
-    for(int tid = 0; tid < numproc; tid++) {
-      //for(auto comm : commlist[tid])
-      //  comm->report();
-      //  comm->run();
-        // comm->measure(warmup, numiter);
-      if(myid == ROOT)
-        printf("commlist[%d] size %zu\n", tid, commlist[tid].size());
+      ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, library, bcast, commlist[tid], 1);
     }
 
     omp_set_num_threads(numthread);
 
+    #pragma omp parallel for
+    for(int tid = 0; tid < numproc; tid++) {
+      for(auto comm : commlist[tid])
+        // comm->report();
+        //comm->run();
+        comm->measure(warmup, numiter);
+      if(myid == ROOT)
+        printf("commlist[%d] size %zu\n", tid, commlist[tid].size());
+    }
+
     measure(count * numproc, warmup, numiter, commlist);
+
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
-
-    return 0;
-
 
     /*for(int sender = 0; sender < numproc; sender++) {
       ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
