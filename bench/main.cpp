@@ -64,13 +64,13 @@ int main(int argc, char *argv[])
   // INITIALIZE
   int myid;
   int numproc;
-  MPI_Init(&argc, &argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+  if(provided != MPI_THREAD_MULTIPLE) {
+    printf("provide MPI_THREAD_MULTIPLE!! current provide is %d\n", provided);
+  }
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
-  int numthread;
-  #pragma omp parallel
-  if(omp_get_thread_num() == 0)
-    numthread = omp_get_num_threads();
   // char machine_name[MPI_MAX_PROCESSOR_NAME];
   // int name_len = 0;
   // MPI_Get_processor_name(machine_name, &name_len);
@@ -79,9 +79,10 @@ int main(int argc, char *argv[])
   // INPUT PARAMETERS
   int library = atoi(argv[1]);
   int pattern = atoi(argv[2]);
-  size_t count = atol(argv[3]);
-  int warmup = atoi(argv[4]);
-  int numiter = atoi(argv[5]);
+  int numthread = atoi(argv[3]);
+  size_t count = atol(argv[4]);
+  int warmup = atoi(argv[5]);
+  int numiter = atoi(argv[6]);
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -122,9 +123,9 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    int frontier_numlevel = 3;
-    int frontier_groupsize[4] = {numproc, 8, 4, 1};
-    CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
+    int frontier_numlevel = 2;
+    int frontier_groupsize[4] = {numproc, 8, 4, 2};
+    CommBench::library frontier_library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
@@ -136,20 +137,59 @@ int main(int argc, char *argv[])
       pthread_create(&thread_id[i], NULL, thread_function, &number);
     }*/
 
-    std::list<CommBench::Comm<Type>*> commlist;
-    for(int sender = 0; sender < numproc; sender++) {
-      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
-      ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist, 1);
+    std::vector<std::list<CommBench::Comm<Type>*>> commlist(numproc);
+    for(int tid = 0; tid < numproc; tid++)
+    {
+      MPI_Comm comm_mpi;
+      MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
+      int numt = omp_get_num_threads();
+      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, tid * count, count, tid, numproc, recvid);
+      ExaComm::bcast_tree(comm_mpi, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[tid], 1);
     }
 
-    if(ExaComm::printid == ROOT)
-      printf("commlist size %lu\n", commlist.size());
+    for(int tid = 0; tid < numproc; tid++) {
+      for(auto comm : commlist[tid])
+        comm->report();
+      //  comm->run();
+        // comm->measure(warmup, numiter);
+      if(myid == ROOT)
+        printf("commlist[%d] size %zu\n", tid, commlist[tid].size());
+    }
 
-    //for(auto comm : commlist)
-    //  comm->measure(warmup, numiter);
+    omp_set_num_threads(numthread);
 
     measure(count * numproc, warmup, numiter, commlist);
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
+
+    return 0;
+
+
+    /*for(int sender = 0; sender < numproc; sender++) {
+      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[sender], 1);
+    }
+
+    for(int p = 0; p < numproc; p++) {
+      for(auto comm : commlist[p])
+        // comm->measure(warmup, numiter);
+        comm->run();
+      if(myid == ROOT)
+        printf("commlist[%d]\n", p);
+    }
+
+    return 0;
+
+    
+    if(ExaComm::printid == ROOT)
+      printf("commlist size %lu\n", commlist[0].size());
+
+    std::list<CommBench::Comm<Type>*> commlist_all;
+    for(int p = 0; p < numproc; p++)
+      for(auto comm : commlist[p])
+        commlist_all.push_back(comm);
+
+    measure(count * numproc, warmup, numiter, commlist_all);
+    validate(sendbuf_d, recvbuf_d, count, pattern, commlist_all);*/
   }
 
 // DEALLOCATE
