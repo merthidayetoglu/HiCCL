@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 template <class Coll>
 void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>> &commlist) {
 
@@ -16,37 +18,44 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
     printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
-    // MPI_Barrier(MPI_COMM_WORLD);
-    /*double time = 0; // = MPI_Wtime();
+    double time = -1;
     {
       double time_thread[numthread];
       #pragma omp parallel
       {
         int tid = omp_get_thread_num();
         int numt = omp_get_num_threads();
-        if(myid == ROOT)
-          printf("Hello from %d / %d\n", tid, numt);
 
         #pragma omp master
         MPI_Barrier(MPI_COMM_WORLD);
         #pragma omp barrier
         time_thread[tid] = omp_get_wtime();
 
-        for(auto comm : commlist[tid])
-          comm->run();
+        #pragma omp for
+        for(auto list : commlist)
+          for(auto comm : list)
+            comm->run();
 
         time_thread[tid] = omp_get_wtime() - time_thread[tid];
       }
-      for(int tid = 0; tid < numthread; tid++)
-        if(time_thread[tid] > time)
-          time = time_thread[tid];
-    }*/
-    MPI_Barrier(MPI_COMM_WORLD);
+      for(int i = 0; i < numthread; i++)
+        if(time_thread[i] > time)
+          time = time_thread[i];
+      double time_all[numproc * numthread];
+      MPI_Allgather(time_thread, numthread, MPI_DOUBLE, time_all, numthread, MPI_DOUBLE, MPI_COMM_WORLD);
+      if(myid == ROOT) {
+        for(int p = 0; p < numproc; p++)
+          for(int t = 0; t < numthread; t++)
+            printf("proc %d thread %d time %f us\n", p, t, time_all[p * numthread + t] * 1e6);
+      }
+    }
+    /*MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
+    #pragma omp parallel for
     for(auto list : commlist)
       for(auto comm : list)
         comm->run();
-    time = MPI_Wtime() - time;
+    time = MPI_Wtime() - time;*/
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if(iter < 0) {
