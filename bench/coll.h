@@ -18,7 +18,7 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
     printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
-    double time = -1;
+    /*double time = -1;
     {
       double time_thread[numthread];
       #pragma omp parallel
@@ -31,31 +31,27 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
         #pragma omp barrier
         time_thread[tid] = omp_get_wtime();
 
-        #pragma omp for
-        for(auto list : commlist)
-          for(auto comm : list)
-            comm->run();
+        ExaComm::run_wait(commlist);
 
         time_thread[tid] = omp_get_wtime() - time_thread[tid];
       }
       for(int i = 0; i < numthread; i++)
         if(time_thread[i] > time)
           time = time_thread[i];
-      double time_all[numproc * numthread];
-      MPI_Allgather(time_thread, numthread, MPI_DOUBLE, time_all, numthread, MPI_DOUBLE, MPI_COMM_WORLD);
-      if(myid == ROOT) {
-        for(int p = 0; p < numproc; p++)
-          for(int t = 0; t < numthread; t++)
-            printf("proc %d thread %d time %f us\n", p, t, time_all[p * numthread + t] * 1e6);
-      }
-    }
-    /*MPI_Barrier(MPI_COMM_WORLD);
+      //double time_all[numproc * numthread];
+      //MPI_Allgather(time_thread, numthread, MPI_DOUBLE, time_all, numthread, MPI_DOUBLE, MPI_COMM_WORLD);
+      ////if(myid == ROOT) {
+      //  for(int p = 0; p < numproc; p++)
+      //    for(int t = 0; t < numthread; t++)
+      //      printf("proc %d thread %d time %f us\n", p, t, time_all[p * numthread + t] * 1e6);
+     // }
+    }*/
+    MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
     #pragma omp parallel for
     for(auto list : commlist)
-      for(auto comm : list)
-        comm->run();
-    time = MPI_Wtime() - time;*/
+      ExaComm::run_async(list);
+    time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if(iter < 0) {
@@ -147,8 +143,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
   MPI_Barrier(MPI_COMM_WORLD);
 
   for(auto list: commlist)
-    for(auto comm : list)
-      comm->run();
+    ExaComm::run_async(list);
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);

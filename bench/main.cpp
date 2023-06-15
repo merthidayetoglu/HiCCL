@@ -35,7 +35,6 @@
 
 // UTILITIES
 #include "../../CommBench/util.h"
-#include "../../CommBench/comm.h"
 
 #include "../exacomm.h"
 #include "coll.h"
@@ -124,9 +123,9 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    int numlevel = 5;
-    int groupsize[5] = {numproc, 8, 4, 2, 1};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[5] = {numproc, 8, 4, 1, 1};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
@@ -150,7 +149,7 @@ int main(int argc, char *argv[])
       commlist[sendid].push_back(comm);
     }*/
 
-    for(int tid = 0; tid < 1; tid++)
+    for(int tid = 0; tid < numproc; tid++)
     {
       MPI_Comm comm_mpi;
       MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
@@ -160,7 +159,6 @@ int main(int argc, char *argv[])
 
     omp_set_num_threads(1);
 
-    #pragma omp parallel for
     for(int tid = 0; tid < numproc; tid++) {
       for(auto comm : commlist[tid]) {
         comm->report();

@@ -13,11 +13,30 @@
  * limitations under the License.
  */
 
+#include "../CommBench/comm.h"
+
 #include <vector>
 #include <list>
 
 
 namespace ExaComm {
+
+  template <typename T>
+  void run_sync(std::list<CommBench::Comm<T>*> &commtrain) {
+    for(auto comm : commtrain)
+      comm->run();
+  }
+
+  template <typename T>
+  void run_async(std::list<CommBench::Comm<T>*> &commtrain) {
+    for(auto comm : commtrain) {
+      comm->start();
+      comm->wait_recv();
+    }
+    for(auto comm : commtrain) {
+      comm->wait_send();
+    }
+  }
 
   int printid;
 
