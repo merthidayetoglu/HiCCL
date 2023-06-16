@@ -48,9 +48,8 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
     }*/
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    #pragma omp parallel for
     for(auto list : commlist)
-      ExaComm::run_async(list);
+      ExaComm::run_sync(list);
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -143,7 +142,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
   MPI_Barrier(MPI_COMM_WORLD);
 
   for(auto list: commlist)
-    ExaComm::run_async(list);
+    ExaComm::run_sync(list);
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);

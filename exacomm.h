@@ -18,7 +18,6 @@
 #include <vector>
 #include <list>
 
-
 namespace ExaComm {
 
   template <typename T>
