@@ -170,6 +170,8 @@ int main(int argc, char *argv[])
 
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
 
+    ExaComm::run_concurrent(commlist);
+
     /*for(int sender = 0; sender < numproc; sender++) {
       ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
       ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[sender], 1);

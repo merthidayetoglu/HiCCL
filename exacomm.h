@@ -17,27 +17,55 @@
 
 #include <vector>
 #include <list>
+#include <iterator>
+
+using namespace std;
 
 namespace ExaComm {
+
+  int printid;
+
+  template <typename T>
+  void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
+
+    for(auto list : commlist)
+      for(auto comm : list) {
+        if(printid == ROOT)
+          printf("start\n");
+        comm->start();
+        while(!comm->test())
+          if(printid == ROOT)
+            printf("test\n");
+        if(printid == ROOT)
+          printf("wait\n");
+        comm->wait();
+      }
+
+    /*bool finished = false;
+    while(!finished) {
+      finished = true;
+      for(auto list : commlist)
+        for(auto it = list.begin(); it < list.size()-1; it++) {
+          if(comm->test()) {
+            comm->wait();
+            (comm + 1)->start();
+          }
+	  else {
+            finished = false;
+          }
+          if(printid == ROOT) printf("start comm\n");
+          while(!comm->test())
+            if(printid == ROOT) printf("not yet\n");
+          comm->wait();
+        }
+    }*/
+  }
 
   template <typename T>
   void run_sync(std::list<CommBench::Comm<T>*> &commtrain) {
     for(auto comm : commtrain)
       comm->run();
   }
-
-  template <typename T>
-  void run_async(std::list<CommBench::Comm<T>*> &commtrain) {
-    for(auto comm : commtrain) {
-      comm->start();
-      comm->wait_recv();
-    }
-    for(auto comm : commtrain) {
-      comm->wait_send();
-    }
-  }
-
-  int printid;
 
   template <typename T>
   struct P2P {
