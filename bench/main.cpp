@@ -63,12 +63,13 @@ int main(int argc, char *argv[])
   // INITIALIZE
   int myid;
   int numproc;
-  int provided;
+  /*int provided;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
   if(provided != MPI_THREAD_MULTIPLE) {
     printf("provide MPI_THREAD_MULTIPLE!! current provide is %d\n", provided);
     return 0;
-  }
+  }*/
+  MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
   // char machine_name[MPI_MAX_PROCESSOR_NAME];
@@ -78,9 +79,10 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  size_t count = atol(argv[2]);
-  int warmup = atoi(argv[3]);
-  int numiter = atoi(argv[4]);
+  int divide = atoi(argv[2]);
+  size_t count = atol(argv[3]);
+  int warmup = atoi(argv[4]);
+  int numiter = atoi(argv[5]);
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -91,6 +93,7 @@ int main(int argc, char *argv[])
     printf("Number of iterations %d\n", numiter);
 
     printf("Pattern: %d\n", pattern);
+    printf("Divide: %d\n", divide);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -119,9 +122,13 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    int numlevel = 3;
-    int groupsize[5] = {numproc, 8, 4, 1, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    char filename[1024];
+    sprintf(filename, "output_%d.txt", ExaComm::printid);
+    ExaComm::pFile = fopen(filename, "w");
+
+    int numlevel = 2;
+    int groupsize[5] = {numproc, 4, 1, 1, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
@@ -133,7 +140,7 @@ int main(int argc, char *argv[])
       pthread_create(&thread_id[i], NULL, thread_function, &number);
     }*/
 
-    std::vector<std::list<CommBench::Comm<Type>*>> commlist(numproc);
+    std::vector<std::list<CommBench::Comm<Type>*>> commlist(divide);
 
     /*for(int sendid = 0; sendid < 1; sendid++)
     {
@@ -145,22 +152,22 @@ int main(int argc, char *argv[])
       commlist[sendid].push_back(comm);
     }*/
 
-    for(int tid = 0; tid < 1; tid++)
+    for(int tid = 0; tid < divide; tid++)
     {
       MPI_Comm comm_mpi;
       MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
-      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, tid * count, count, tid, numproc, recvid);
+      ExaComm::BCAST<Type> bcast(sendbuf_d, tid * (count / divide), recvbuf_d, tid * (count / divide), count / divide, 0, numproc, recvid);
       ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, library, bcast, commlist[tid], 1);
  
     }
 
     // omp_set_num_threads(1);
 
-    for(int p = 0; p < numproc; p++) {
+    for(int p = 0; p < commlist.size(); p++) {
       for(auto comm : commlist[p]) {
-         comm->report();
+        // comm->report();
         // comm->run();
-        // comm->measure(warmup, numiter);
+        ;//comm->measure(warmup, numiter);
       }
       if(myid == ROOT)
         printf("commlist[%d] size %zu\n", p, commlist[p].size());
@@ -168,9 +175,10 @@ int main(int argc, char *argv[])
 
     measure(count * numproc, warmup, numiter, commlist);
 
+    // ExaComm::run_concurrent(commlist);
+
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
 
-    ExaComm::run_concurrent(commlist);
 
     /*for(int sender = 0; sender < numproc; sender++) {
       ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);

@@ -19,46 +19,52 @@
 #include <list>
 #include <iterator>
 
-using namespace std;
-
 namespace ExaComm {
 
   int printid;
+  FILE *pFile;
 
   template <typename T>
   void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
 
-    for(auto list : commlist)
-      for(auto comm : list) {
-        if(printid == ROOT)
-          printf("start\n");
-        comm->start();
-        while(!comm->test())
-          if(printid == ROOT)
-            printf("test\n");
-        if(printid == ROOT)
-          printf("wait\n");
-        comm->wait();
+    using Iter = typename std::list<CommBench::Comm<T>*>::iterator;
+    std::vector<Iter> commptr(commlist.size());
+    for(int i = 0; i < commlist.size(); i++)
+      commptr[i] = commlist[i].begin();
+
+    std::vector<bool> status(commlist.size()); // 0: wait 1: ready: 
+    for(int i = 0; i < commlist.size(); i++)
+      if(commptr[i] != commlist[i].end()) {
+        // fprintf(pFile, "start i %d init\n", i);
+        (*commptr[i])->start();
+        status[i] = 0;
       }
 
-    /*bool finished = false;
+    bool finished = false;
     while(!finished) {
       finished = true;
-      for(auto list : commlist)
-        for(auto it = list.begin(); it < list.size()-1; it++) {
-          if(comm->test()) {
-            comm->wait();
-            (comm + 1)->start();
-          }
-	  else {
+      for(int i = 0; i < commlist.size(); i++) {
+        if(commptr[i] != commlist[i].end()) {
+          if(!(*commptr[i])->test()) {
+            // fprintf(pFile, "test %d\n", i);
             finished = false;
           }
-          if(printid == ROOT) printf("start comm\n");
-          while(!comm->test())
-            if(printid == ROOT) printf("not yet\n");
-          comm->wait();
+          else {
+            fprintf(pFile, "wait %d\n", i);
+            (*commptr[i])->wait();
+            commptr[i]++;
+	    if(commptr[i] != commlist[i].end()) {
+              // fprintf(pFile, "start next %d\n", i);
+              (*commptr[i])->start();
+              finished = false;
+            }
+	    else {
+              ; //fprintf(pFile, "i %d is finished\n", i);
+	    }
+          }
         }
-    }*/
+      }
+    }
   }
 
   template <typename T>
