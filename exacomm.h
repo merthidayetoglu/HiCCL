@@ -32,12 +32,10 @@ namespace ExaComm {
     for(int i = 0; i < commlist.size(); i++)
       commptr[i] = commlist[i].begin();
 
-    std::vector<bool> status(commlist.size()); // 0: wait 1: ready: 
     for(int i = 0; i < commlist.size(); i++)
       if(commptr[i] != commlist[i].end()) {
         // fprintf(pFile, "start i %d init\n", i);
         (*commptr[i])->start();
-        status[i] = 0;
       }
 
     bool finished = false;
