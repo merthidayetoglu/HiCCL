@@ -34,7 +34,7 @@ namespace ExaComm {
 
     for(int i = 0; i < commlist.size(); i++)
       if(commptr[i] != commlist[i].end()) {
-        // fprintf(pFile, "start i %d init\n", i);
+        fprintf(pFile, "start i %d init\n", i);
         (*commptr[i])->start();
       }
 
@@ -44,7 +44,7 @@ namespace ExaComm {
       for(int i = 0; i < commlist.size(); i++) {
         if(commptr[i] != commlist[i].end()) {
           if(!(*commptr[i])->test()) {
-            // fprintf(pFile, "test %d\n", i);
+            fprintf(pFile, "test %d\n", i);
             finished = false;
           }
           else {
@@ -52,7 +52,7 @@ namespace ExaComm {
             (*commptr[i])->wait();
             commptr[i]++;
 	    if(commptr[i] != commlist[i].end()) {
-              // fprintf(pFile, "start next %d\n", i);
+              fprintf(pFile, "start next %d\n", i);
               (*commptr[i])->start();
               finished = false;
             }
@@ -151,13 +151,12 @@ namespace ExaComm {
     }
 
     // REPORT PRIMITIVE BCAST TREE
-    bcast.report(ROOT);
-    // CREATE COMMUNICATOR
+    // bcast.report(ROOT);
 
     // EXIT CONDITION
     if(level == numlevel) {
-      if(printid == ROOT)
-        printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
+      //if(printid == ROOT)
+        // printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
       CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
       for(auto recvid : bcast.recvid) {
         int sendid = bcast.sendid;
@@ -184,8 +183,8 @@ namespace ExaComm {
         }
         if(recvids.size()) {
           int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-          if(printid == ROOT)
-            printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+          //if(printid == ROOT)
+          //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
           BCAST<T> bcast_new(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data());
           bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_new, commlist, level + 1);
         }
@@ -204,8 +203,8 @@ namespace ExaComm {
         }
         if(recvids.size()) {
           int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-          if(printid == ROOT)
-            printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+          //if(printid == ROOT)
+          //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
 
           T *recvbuf;
           int recvoffset;
@@ -213,8 +212,8 @@ namespace ExaComm {
 
           for(auto it = recvids.begin(); it != recvids.end(); ++it) {
             if(*it == recvid) {
-              if(printid == ROOT)
-                printf("******************************************************************************************* found recvid %d\n", *it);
+              //if(printid == ROOT)
+              //  printf("******************************************************************************************* found recvid %d\n", *it);
               recvbuf = bcast.recvbuf;
               recvoffset = bcast.recvoffset;
               found = true;
@@ -229,7 +228,7 @@ namespace ExaComm {
             hipMalloc(&recvbuf, bcast.count * sizeof(T));
 #endif
             recvoffset = 0;
-            printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
+            //printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
           }
 
           comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);

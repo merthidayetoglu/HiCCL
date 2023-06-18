@@ -18,10 +18,14 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
     printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
+#ifdef PORT_CUDA
+    cudaDeviceSynchronize();
+#elif defined PORT_HIP
+    hipDeviceSynchronize();
+#endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    /*#pragma omp parallel for
-    for(auto list : commlist)
+    /*for(auto list : commlist)
       for(auto comm : list)
         comm->run();*/
     ExaComm::run_concurrent(commlist);
@@ -118,8 +122,9 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  for(auto list: commlist)
-    ExaComm::run_sync(list);
+  //for(auto list: commlist)
+  //  ExaComm::run_sync(list);
+  ExaComm::run_concurrent(commlist);
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);

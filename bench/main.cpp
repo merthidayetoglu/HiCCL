@@ -127,39 +127,23 @@ int main(int argc, char *argv[])
     ExaComm::pFile = fopen(filename, "w");
 
     int numlevel = 2;
-    int groupsize[5] = {numproc, 4, 1, 1, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int groupsize[5] = {numproc, 4, 2, 1, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
       recvid[p] = p;
 
-    /*pthread_t thread_id[numproc];
-    int number = 5;
-    for(int i = 0; i < numproc; i++) {
-      pthread_create(&thread_id[i], NULL, thread_function, &number);
-    }*/
+    std::vector<std::list<CommBench::Comm<Type>*>> commlist(divide * numproc);
 
-    std::vector<std::list<CommBench::Comm<Type>*>> commlist(divide);
-
-    /*for(int sendid = 0; sendid < 1; sendid++)
-    {
-      MPI_Comm comm_mpi;
-      MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
-      CommBench::Comm<Type> *comm = new CommBench::Comm<Type>(comm_mpi, CommBench::MPI);
-      for(int recvid = 0; recvid < numproc; recvid++)
-        comm->add(sendbuf_d, 0, recvbuf_d, sendid * count, count, sendid, recvid);
-      commlist[sendid].push_back(comm);
-    }*/
-
-    for(int tid = 0; tid < divide; tid++)
-    {
-      MPI_Comm comm_mpi;
-      MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
-      ExaComm::BCAST<Type> bcast(sendbuf_d, tid * (count / divide), recvbuf_d, tid * (count / divide), count / divide, 0, numproc, recvid);
-      ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, library, bcast, commlist[tid], 1);
- 
-    }
+    for(int p = 0; p < numproc; p++)
+      for(int div = 0; div < divide; div++)
+      {
+        MPI_Comm comm_mpi;
+        MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
+        ExaComm::BCAST<Type> bcast(sendbuf_d, div * (count / divide), recvbuf_d, p * count + div * (count / divide), count / divide, p, numproc, recvid);
+        ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, library, bcast, commlist[p * divide + div], 1);
+      }
 
     // omp_set_num_threads(1);
 
@@ -167,7 +151,7 @@ int main(int argc, char *argv[])
       for(auto comm : commlist[p]) {
         // comm->report();
         // comm->run();
-        ;//comm->measure(warmup, numiter);
+        comm->measure(warmup, numiter);
       }
       if(myid == ROOT)
         printf("commlist[%d] size %zu\n", p, commlist[p].size());
