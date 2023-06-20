@@ -122,72 +122,43 @@ int main(int argc, char *argv[])
 
   {
     ExaComm::printid = myid;
-    char filename[1024];
-    sprintf(filename, "output_%d.txt", ExaComm::printid);
-    ExaComm::pFile = fopen(filename, "w");
 
     int numlevel = 3;
-    int groupsize[5] = {numproc, 4, 1, 1, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int groupsize[5] = {numproc, 8, 4, 1, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
-    int recvid[numproc];
+
+    std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
-      recvid[p] = p;
+      recvid.push_back(p);
 
-    std::vector<std::list<CommBench::Comm<Type>*>> commlist(divide * numproc);
-
+    std::vector<ExaComm::BCAST<Type>> bcastlist;
     for(int p = 0; p < numproc; p++)
-      for(int div = 0; div < divide; div++)
-      {
-        ExaComm::BCAST<Type> bcast(sendbuf_d, div * (count / divide), recvbuf_d, p * count + div * (count / divide), count / divide, p, numproc, recvid);
-        ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcast, commlist[p * divide + div], 1);
-      }
+      bcastlist.push_back(ExaComm::BCAST<Type>(sendbuf_d, 0, recvbuf_d, p * count, count, p, recvid.size(), recvid.data()));
 
-    // omp_set_num_threads(1);
+    std::list<CommBench::Comm<Type>*> commlist;
+    {
+      MPI_Barrier(MPI_COMM_WORLD);
+      double preproc_time = MPI_Wtime();
 
-    for(int p = 0; p < commlist.size(); p++) {
-      for(auto comm : commlist[p]) {
-        comm->report();
-        // comm->run();
-        // comm->measure(warmup, numiter);
-      }
+      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1);
+
+      preproc_time = MPI_Wtime() - preproc_time;
       if(myid == ROOT)
-        printf("commlist[%d] size %zu\n", p, commlist[p].size());
+        printf("preproc time %e\n", preproc_time);
     }
+
+    for(auto comm : commlist) {
+      // comm->report();
+      // comm->run();
+      comm->measure(warmup, numiter);
+    }
+    if(myid == ROOT)
+      printf("commlist size %zu\n", commlist.size());
 
     measure(count * numproc, warmup, numiter, commlist);
-
-    // ExaComm::run_concurrent(commlist);
-
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
 
-
-    /*for(int sender = 0; sender < numproc; sender++) {
-      ExaComm::BCAST<Type> bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
-      ExaComm::bcast_tree(MPI_COMM_WORLD, frontier_numlevel, frontier_groupsize, frontier_library, bcast, commlist[sender], 1);
-    }
-
-    for(int p = 0; p < numproc; p++) {
-      for(auto comm : commlist[p])
-        // comm->measure(warmup, numiter);
-        comm->run();
-      if(myid == ROOT)
-        printf("commlist[%d]\n", p);
-    }
-
-    return 0;
-
-    
-    if(ExaComm::printid == ROOT)
-      printf("commlist size %lu\n", commlist[0].size());
-
-    std::list<CommBench::Comm<Type>*> commlist_all;
-    for(int p = 0; p < numproc; p++)
-      for(auto comm : commlist[p])
-        commlist_all.push_back(comm);
-
-    measure(count * numproc, warmup, numiter, commlist_all);
-    validate(sendbuf_d, recvbuf_d, count, pattern, commlist_all);*/
   }
 
 // DEALLOCATE
