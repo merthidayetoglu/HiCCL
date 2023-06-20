@@ -25,9 +25,8 @@ void measure(size_t count, int warmup, int numiter, std::vector<std::list<Coll*>
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    /*for(auto list : commlist)
-      for(auto comm : list)
-        comm->run();*/
+    /*for(auto list: commlist)
+      ExaComm::run_sync(list); */
     ExaComm::run_concurrent(commlist);
     time = MPI_Wtime() - time;
 
@@ -101,7 +100,6 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
   hipHostMalloc(&recvbuf, count * numproc * sizeof(int));
 #endif
   
-
   for(int p = 0; p < numproc; p++)
     for(size_t i = p * count; i < (p + 1) * count; i++)
       sendbuf[i] = i;
@@ -122,8 +120,8 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::ve
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //for(auto list: commlist)
-  //  ExaComm::run_sync(list);
+  /*for(auto list: commlist)
+    ExaComm::run_sync(list);*/
   ExaComm::run_concurrent(commlist);
 
 #ifdef PORT_CUDA

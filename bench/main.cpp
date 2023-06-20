@@ -126,9 +126,9 @@ int main(int argc, char *argv[])
     sprintf(filename, "output_%d.txt", ExaComm::printid);
     ExaComm::pFile = fopen(filename, "w");
 
-    int numlevel = 2;
-    int groupsize[5] = {numproc, 4, 2, 1, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[5] = {numproc, 4, 1, 1, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     int recvid[numproc];
     for(int p = 0; p < numproc; p++)
@@ -139,19 +139,17 @@ int main(int argc, char *argv[])
     for(int p = 0; p < numproc; p++)
       for(int div = 0; div < divide; div++)
       {
-        MPI_Comm comm_mpi;
-        MPI_Comm_dup(MPI_COMM_WORLD, &comm_mpi);
         ExaComm::BCAST<Type> bcast(sendbuf_d, div * (count / divide), recvbuf_d, p * count + div * (count / divide), count / divide, p, numproc, recvid);
-        ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, library, bcast, commlist[p * divide + div], 1);
+        ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcast, commlist[p * divide + div], 1);
       }
 
     // omp_set_num_threads(1);
 
     for(int p = 0; p < commlist.size(); p++) {
       for(auto comm : commlist[p]) {
-        // comm->report();
+        comm->report();
         // comm->run();
-        comm->measure(warmup, numiter);
+        // comm->measure(warmup, numiter);
       }
       if(myid == ROOT)
         printf("commlist[%d] size %zu\n", p, commlist[p].size());

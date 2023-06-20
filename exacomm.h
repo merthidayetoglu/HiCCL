@@ -34,7 +34,7 @@ namespace ExaComm {
 
     for(int i = 0; i < commlist.size(); i++)
       if(commptr[i] != commlist[i].end()) {
-        fprintf(pFile, "start i %d init\n", i);
+        // fprintf(pFile, "start i %d init\n", i);
         (*commptr[i])->start();
       }
 
@@ -44,15 +44,15 @@ namespace ExaComm {
       for(int i = 0; i < commlist.size(); i++) {
         if(commptr[i] != commlist[i].end()) {
           if(!(*commptr[i])->test()) {
-            fprintf(pFile, "test %d\n", i);
+            // fprintf(pFile, "test %d\n", i);
             finished = false;
           }
           else {
-            fprintf(pFile, "wait %d\n", i);
-            (*commptr[i])->wait();
+            // fprintf(pFile, "wait %d\n", i);
+            // (*commptr[i])->wait();
             commptr[i]++;
 	    if(commptr[i] != commlist[i].end()) {
-              fprintf(pFile, "start next %d\n", i);
+              // fprintf(pFile, "start next %d\n", i);
               (*commptr[i])->start();
               finished = false;
             }
