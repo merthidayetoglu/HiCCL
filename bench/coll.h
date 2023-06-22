@@ -1,7 +1,7 @@
 #include <unistd.h>
 
-template <class Coll>
-void measure(size_t count, int warmup, int numiter, std::list<Coll*> &commlist) {
+template <class Coll, typename T>
+void measure(size_t count, int warmup, int numiter, std::list<Coll*> &commlist, std::list<ExaComm::Command<T>> &commandlist) {
 
   int myid;
   int numproc;
@@ -25,8 +25,9 @@ void measure(size_t count, int warmup, int numiter, std::list<Coll*> &commlist) 
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    for(auto comm: commlist)
-      comm->run();
+    // for(auto comm: commlist)
+    //  comm->run();
+    ExaComm::run_command(commandlist);
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -79,8 +80,8 @@ void measure(size_t count, int warmup, int numiter, std::list<Coll*> &commlist) 
   }
 }
 
-template <class Coll>
-void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::list<Coll*> &commlist) {
+template <class Coll, typename T>
+void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::list<Coll*> &commlist, std::list<ExaComm::Command<T>> &commandlist) {
 
   int myid;
   int numproc;
@@ -117,8 +118,9 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::li
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  for(auto comm : commlist)
-    comm->run();
+ // for(auto comm : commlist)
+ //   comm->run();
+  ExaComm::run_command(commandlist);
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);

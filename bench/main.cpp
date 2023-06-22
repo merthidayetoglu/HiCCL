@@ -79,10 +79,9 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  int divide = atoi(argv[2]);
-  size_t count = atol(argv[3]);
-  int warmup = atoi(argv[4]);
-  int numiter = atoi(argv[5]);
+  size_t count = atol(argv[2]);
+  int warmup = atoi(argv[3]);
+  int numiter = atoi(argv[4]);
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -93,7 +92,6 @@ int main(int argc, char *argv[])
     printf("Number of iterations %d\n", numiter);
 
     printf("Pattern: %d\n", pattern);
-    printf("Divide: %d\n", divide);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -124,9 +122,8 @@ int main(int argc, char *argv[])
     ExaComm::printid = myid;
 
     int numlevel = 3;
-    int groupsize[5] = {numproc, 8, 4, 1, 1};
+    int groupsize[5] = {numproc, 8, 4, 1};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-
 
     std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
@@ -137,27 +134,40 @@ int main(int argc, char *argv[])
       bcastlist.push_back(ExaComm::BCAST<Type>(sendbuf_d, 0, recvbuf_d, p * count, count, p, recvid.size(), recvid.data()));
 
     std::list<CommBench::Comm<Type>*> commlist;
+    std::list<ExaComm::Command<Type>> commandlist;
+    std::list<ExaComm::Command<Type>> waitlist;
     {
       MPI_Barrier(MPI_COMM_WORLD);
       double preproc_time = MPI_Wtime();
 
-      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist);
 
       preproc_time = MPI_Wtime() - preproc_time;
       if(myid == ROOT)
         printf("preproc time %e\n", preproc_time);
     }
+    commandlist.splice(commandlist.end(), waitlist);
 
-    for(auto comm : commlist) {
-      // comm->report();
-      // comm->run();
-      comm->measure(warmup, numiter);
+
+    int counter = 0;
+    for(auto it = commandlist.begin(); it != commandlist.end(); it++) {
+      if(myid == ROOT)
+        printf("count: %d command: %d\n", counter, it->com);
+      // it->comm->measure(warmup, numiter);
+      it->comm->report();
+      counter++;
     }
     if(myid == ROOT)
-      printf("commlist size %zu\n", commlist.size());
+      printf("commandlist size %d\n", commandlist.size());
 
-    measure(count * numproc, warmup, numiter, commlist);
-    validate(sendbuf_d, recvbuf_d, count, pattern, commlist);
+    for(auto comm : commlist)
+      comm->measure(warmup, numiter);
+
+    if(myid == ROOT)
+      printf("commlist size %d\n", commlist.size());
+
+    measure(count * numproc, warmup, numiter, commlist, commandlist);
+    validate(sendbuf_d, recvbuf_d, count, pattern, commlist, commandlist);
 
   }
 
