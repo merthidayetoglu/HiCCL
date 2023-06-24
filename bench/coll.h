@@ -25,9 +25,12 @@ void measure(size_t count, int warmup, int numiter, std::list<Coll*> &commlist, 
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    // for(auto comm: commlist)
-    //  comm->run();
+#ifdef FACTOR_LEVEL
+    for(auto comm : commlist)
+      comm->run();
+#elif defined FACTOR_LOCAL
     ExaComm::run_command(commandlist);
+#endif
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -118,9 +121,12 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, std::li
 
   MPI_Barrier(MPI_COMM_WORLD);
 
- // for(auto comm : commlist)
- //   comm->run();
+#ifdef FACTOR_LEVEL
+  for(auto comm : commlist)
+    comm->run();
+#elif defined FACTOR_LOCAL
   ExaComm::run_command(commandlist);
+#endif
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);

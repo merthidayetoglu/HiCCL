@@ -23,21 +23,27 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 // UTILITIES
 #include "../../CommBench/util.h"
 
+// #define FACTOR_LEVEL
+ #define FACTOR_LOCAL
+// #define FACTOR_GROUP
 #include "../exacomm.h"
+
+
 #include "coll.h"
+
 
 void print_args();
 
@@ -122,8 +128,8 @@ int main(int argc, char *argv[])
     ExaComm::printid = myid;
 
     int numlevel = 3;
-    int groupsize[5] = {numproc, 8, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int groupsize[5] = {numproc, 8, 4, 2, 1};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
@@ -158,13 +164,13 @@ int main(int argc, char *argv[])
       counter++;
     }
     if(myid == ROOT)
-      printf("commandlist size %d\n", commandlist.size());
+      printf("commandlist size %zu\n", commandlist.size());
 
     for(auto comm : commlist)
       comm->measure(warmup, numiter);
 
     if(myid == ROOT)
-      printf("commlist size %d\n", commlist.size());
+      printf("commlist size %zu\n", commlist.size());
 
     measure(count * numproc, warmup, numiter, commlist, commandlist);
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist, commandlist);

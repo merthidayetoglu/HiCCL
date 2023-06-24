@@ -79,11 +79,14 @@ namespace ExaComm {
   void run_command(std::list<Command<T>> &commandlist) {
     for(auto comm : commandlist) {
       switch(comm.com) {
-       case(command::wait) :
-          comm.comm->wait();
-          break;
         case(command::start) :
           comm.comm->start();
+          break;
+        case(command::wait) :
+          comm.comm->wait();
+          break;
+        case(command::run) :
+          comm.comm->run();
           break;
       }
     }
@@ -182,16 +185,23 @@ namespace ExaComm {
           comm_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
         }
       }
+#ifdef FACTOR_LOCAL
       commandlist.push_back(Command<T>(comm_temp, command::start));
       waitlist.push_back(Command<T>(comm_temp, command::wait));
+#endif
       if(printid == ROOT)
         printf("\n");
     }
     if(level < numlevel)
     {
+#ifdef FACTOR_LEVEL
+      std::vector<BCAST<T>> bcastlist_new;
+#endif
       // LOCAL COMMUNICATIONS
       {
+#ifdef FACTOR_LOCAL
         std::vector<BCAST<T>> bcastlist_new;
+#endif
         for(auto bcast : bcastlist) {
           int sendgroup = bcast.sendid / groupsize[level];
           for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
@@ -210,12 +220,16 @@ namespace ExaComm {
             }
           }
         }
+#ifdef FACTOR_LOCAL
         if(bcastlist_new.size())
           bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist);
+#endif
       }
       // GLOBAL COMMUNICATIONS
       {
+#ifdef FACTOR_LOCAL
         std::vector<BCAST<T>> bcastlist_new;
+#endif
         for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
           for(auto bcast : bcastlist) {
             int sendgroup = bcast.sendid / groupsize[level];
@@ -260,12 +274,18 @@ namespace ExaComm {
             }
           }
         }
+#ifdef FACTOR_LOCAL
         if(bcastlist_new.size()) {
           commandlist.push_back(Command<T>(comm_temp, command::start));
           commandlist.push_back(Command<T>(comm_temp, command::wait));
           bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist);
 	}
+#endif
       }
+#ifdef FACTOR_LEVEL
+      if(bcastlist_new.size())
+        bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist);
+#endif
     }
   }
 
