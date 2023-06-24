@@ -173,6 +173,9 @@ namespace ExaComm {
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
     commlist.push_back(comm_temp);
+#ifdef FACTOR_LOCAL
+    commandlist.push_back(Command<T>(comm_temp, command::start));
+#endif
 
     int numgroup = numproc / groupsize[level];
 
@@ -186,7 +189,6 @@ namespace ExaComm {
         }
       }
 #ifdef FACTOR_LOCAL
-      commandlist.push_back(Command<T>(comm_temp, command::start));
       waitlist.push_back(Command<T>(comm_temp, command::wait));
 #endif
       if(printid == ROOT)
@@ -221,8 +223,10 @@ namespace ExaComm {
           }
         }
 #ifdef FACTOR_LOCAL
-        if(bcastlist_new.size())
+        if(bcastlist_new.size()) {
           bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist);
+          commandlist.push_back(Command<T>(comm_temp, command::wait));
+        }
 #endif
       }
       // GLOBAL COMMUNICATIONS
@@ -276,7 +280,6 @@ namespace ExaComm {
         }
 #ifdef FACTOR_LOCAL
         if(bcastlist_new.size()) {
-          commandlist.push_back(Command<T>(comm_temp, command::start));
           commandlist.push_back(Command<T>(comm_temp, command::wait));
           bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist);
 	}
