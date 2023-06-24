@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 // UTILITIES
@@ -127,9 +127,9 @@ int main(int argc, char *argv[])
   {
     ExaComm::printid = myid;
 
-    int numlevel = 3;
-    int groupsize[5] = {numproc, 8, 4, 2, 1};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[5] = {numproc, 16, 8, 4, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
 
     std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       double preproc_time = MPI_Wtime();
 
-      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist, 3);
 
       preproc_time = MPI_Wtime() - preproc_time;
       if(myid == ROOT)
@@ -154,23 +154,25 @@ int main(int argc, char *argv[])
     }
     commandlist.splice(commandlist.end(), waitlist);
 
-
+#ifdef FACTOR_LOCAL
     int counter = 0;
     for(auto it = commandlist.begin(); it != commandlist.end(); it++) {
       if(myid == ROOT)
         printf("count: %d command: %d\n", counter, it->com);
-      // it->comm->measure(warmup, numiter);
-      it->comm->report();
+      if(it->com == ExaComm::command::start)
+        it->comm->measure(warmup, numiter);
+      else
+        it->comm->report();
       counter++;
     }
     if(myid == ROOT)
       printf("commandlist size %zu\n", commandlist.size());
-
+#elif defined FACTOR_LEVEL
     for(auto comm : commlist)
       comm->measure(warmup, numiter);
-
     if(myid == ROOT)
       printf("commlist size %zu\n", commlist.size());
+#endif
 
     measure(count * numproc, warmup, numiter, commlist, commandlist);
     validate(sendbuf_d, recvbuf_d, count, pattern, commlist, commandlist);
