@@ -38,7 +38,6 @@
 
 // #define FACTOR_LEVEL
  #define FACTOR_LOCAL
-// #define FACTOR_GROUP
 #include "../exacomm.h"
 
 
@@ -127,9 +126,9 @@ int main(int argc, char *argv[])
   {
     ExaComm::printid = myid;
 
-    int numlevel = 4;
-    int groupsize[5] = {numproc, 16, 8, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[5] = {numproc, 8, 4, 4, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
@@ -146,7 +145,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       double preproc_time = MPI_Wtime();
 
-      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist, 3);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist, 1);
 
       preproc_time = MPI_Wtime() - preproc_time;
       if(myid == ROOT)

@@ -173,10 +173,18 @@ namespace ExaComm {
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
     commlist.push_back(comm_temp);
-    commandlist.push_back(Command<T>(comm_temp, command::start));
+
+#ifdef FACTOR_LOCAL
+    if(level > nodelevel)
+      commandlist.push_back(Command<T>(comm_temp, command::start));
+#endif
 
     int numgroup = numproc / groupsize[level];
+#ifdef FACTOR_LEVEL
+    std::vector<BCAST<T>> bcastlist_new;
+#endif
 
+    //  EXIT CONDITION
     if(level == numlevel) {
       if(printid == ROOT)
          printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
@@ -186,108 +194,109 @@ namespace ExaComm {
           comm_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
         }
       }
+      if(printid == ROOT)
+        printf("\n");
 #ifdef FACTOR_LOCAL
       waitlist.push_back(Command<T>(comm_temp, command::wait));
 #endif
-      if(printid == ROOT)
-        printf("\n");
+      return;
     }
-    if(level < numlevel)
+
+    // LOCAL COMMUNICATIONS
     {
-#ifdef FACTOR_LEVEL
+#ifdef FACTOR_LOCAL
       std::vector<BCAST<T>> bcastlist_new;
 #endif
-      // LOCAL COMMUNICATIONS
-      {
+      for(auto bcast : bcastlist) {
+        int sendgroup = bcast.sendid / groupsize[level];
+        for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
+          if(sendgroup == recvgroup) {
+            std::vector<int> recvids;
+            for(auto recvid : bcast.recvid) {
+              int group = recvid / groupsize[level];
+              if(group == recvgroup)
+                recvids.push_back(recvid);
+            }
+            if(recvids.size()) {
+              if(printid == ROOT)
+                printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
+              bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids.size(), recvids.data()));
+            }
+          }
+        }
+      }
 #ifdef FACTOR_LOCAL
-        std::vector<BCAST<T>> bcastlist_new;
+      if(bcastlist_new.size()) {
+        bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
+      }
 #endif
+    }
+
+#ifdef FACTOR_LOCAL
+    if(level <= nodelevel)
+      commandlist.push_back(Command<T>(comm_temp, command::start));
+    commandlist.push_back(Command<T>(comm_temp, command::wait));
+#endif
+
+    // GLOBAL COMMUNICATIONS
+    {
+#ifdef FACTOR_LOCAL
+      std::vector<BCAST<T>> bcastlist_new;
+#endif
+      for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
         for(auto bcast : bcastlist) {
           int sendgroup = bcast.sendid / groupsize[level];
-          for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
-            if(sendgroup == recvgroup) {
-              std::vector<int> recvids;
-              for(auto recvid : bcast.recvid) {
-                int group = recvid / groupsize[level];
-                if(group == recvgroup)
-                  recvids.push_back(recvid);
-              }
-              if(recvids.size()) {
-                if(printid == ROOT)
-                  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
-                bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids.size(), recvids.data()));
-              }
+          if(sendgroup != recvgroup) {
+            std::vector<int> recvids;
+            for(auto recvid : bcast.recvid) {
+              if(recvid / groupsize[level] == recvgroup)
+                recvids.push_back(recvid);
             }
-          }
-        }
-#ifdef FACTOR_LOCAL
-        if(bcastlist_new.size()) {
-          bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
-          commandlist.push_back(Command<T>(comm_temp, command::wait));
-        }
-#endif
-      }
-      // GLOBAL COMMUNICATIONS
-      {
-#ifdef FACTOR_LOCAL
-        std::vector<BCAST<T>> bcastlist_new;
-#endif
-        for(int recvgroup = 0; recvgroup < numgroup; recvgroup++) {
-          for(auto bcast : bcastlist) {
-            int sendgroup = bcast.sendid / groupsize[level];
-            if(sendgroup != recvgroup) {
-              std::vector<int> recvids;
-              for(auto recvid : bcast.recvid) {
-                if(recvid / groupsize[level] == recvgroup)
-                  recvids.push_back(recvid);
-              }
-              if(recvids.size()) {
-                int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-                if(printid == ROOT)
-                  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
-                T *recvbuf;
-                int recvoffset;
-                bool found = false;
-                for(auto it = recvids.begin(); it != recvids.end(); ++it) {
-                  if(*it == recvid) {
-                    if(printid == ROOT)
-                      printf("******************************************************************************************* found recvid %d\n", *it);
-                    recvbuf = bcast.recvbuf;
-                    recvoffset = bcast.recvoffset;
-                    found = true;
-                    recvids.erase(it);
-                    break;
-                  }
+            if(recvids.size()) {
+              int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
+              if(printid == ROOT)
+                printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+              T *recvbuf;
+              int recvoffset;
+              bool found = false;
+              for(auto it = recvids.begin(); it != recvids.end(); ++it) {
+                if(*it == recvid) {
+                  if(printid == ROOT)
+                    printf("******************************************************************************************* found recvid %d\n", *it);
+                  recvbuf = bcast.recvbuf;
+                  recvoffset = bcast.recvoffset;
+                  found = true;
+                  recvids.erase(it);
+                  break;
                 }
-                if(!found && myid == recvid) {
+              }
+              if(!found && myid == recvid) {
 #ifdef PORT_CUDA
-                  cudaMalloc(&recvbuf, bcast.count * sizeof(T));
+                cudaMalloc(&recvbuf, bcast.count * sizeof(T));
 #elif defined PORT_HIP
-                  hipMalloc(&recvbuf, bcast.count * sizeof(T));
+                hipMalloc(&recvbuf, bcast.count * sizeof(T));
 #endif
-                  recvoffset = 0;
-                  printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
-                }
-                comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
-                if(recvids.size()) {
-                  bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data()));
-                }
+                recvoffset = 0;
+                printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
+              }
+              comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
+              if(recvids.size()) {
+                bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data()));
               }
             }
           }
         }
-#ifdef FACTOR_LOCAL
-        if(bcastlist_new.size()) {
-          commandlist.push_back(Command<T>(comm_temp, command::wait));
-          bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
-	}
-#endif
       }
-#ifdef FACTOR_LEVEL
+#ifdef FACTOR_LOCAL
       if(bcastlist_new.size())
         bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
 #endif
     }
+
+#ifdef FACTOR_LEVEL
+    if(bcastlist_new.size())
+      bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
+#endif
   }
 
   template <typename T>
