@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
     ExaComm::printid = myid;
 
     int numlevel = 5;
-    int nodelevel = 2;
+    int nodelevel = 1;
     int groupsize[5] = {numproc, 16, 8, 4, 2};
     CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
