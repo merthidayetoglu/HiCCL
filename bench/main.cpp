@@ -126,9 +126,29 @@ int main(int argc, char *argv[])
   {
     ExaComm::printid = myid;
 
-    int numlevel = 3;
-    int groupsize[5] = {numproc, 8, 4, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int nodelevel = 2;
+    int groupsize[5] = {numproc, 16, 8, 4, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
+
+    if(myid == ROOT)
+      for(int level = 0; level < numlevel; level++) {
+        if(level == nodelevel)
+          printf("*");
+        printf("level: %d groupsize: %d library: ", level, groupsize[level]);
+        switch(library[level]) {
+	  case(CommBench::IPC) :
+            printf("IPC\n");
+            break;
+	  case(CommBench::MPI) :
+            printf("MPI\n");
+            break;
+          case(CommBench::NCCL) :
+            printf("NCCL\n");
+            break;
+        }
+
+      }
 
     std::vector<int> recvid;
     for(int p = 0; p < numproc; p++)
@@ -145,7 +165,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       double preproc_time = MPI_Wtime();
 
-      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist, 1);
+      ExaComm::bcast_tree(MPI_COMM_WORLD, numlevel, groupsize, library, bcastlist, commlist, 1, commandlist, waitlist, nodelevel);
 
       preproc_time = MPI_Wtime() - preproc_time;
       if(myid == ROOT)
