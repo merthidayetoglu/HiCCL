@@ -179,7 +179,6 @@ namespace ExaComm {
       commandlist.push_back(Command<T>(comm_temp, command::start));
 #endif
 
-    int numgroup = numproc / groupsize[level];
 #ifdef FACTOR_LEVEL
     std::vector<BCAST<T>> bcastlist_new;
 #endif
@@ -201,6 +200,8 @@ namespace ExaComm {
 #endif
       return;
     }
+
+    int numgroup = numproc / groupsize[level];
 
     // LOCAL COMMUNICATIONS
     {

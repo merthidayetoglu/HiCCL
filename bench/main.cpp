@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 // UTILITIES
@@ -126,15 +126,17 @@ int main(int argc, char *argv[])
   {
     ExaComm::printid = myid;
 
-    int numlevel = 4;
+    int numlevel = 5;
     int nodelevel = 2;
-    int groupsize[5] = {numproc, 16, 8, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
+    int groupsize[5] = {numproc, 16, 8, 4, 2};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     if(myid == ROOT)
       for(int level = 0; level < numlevel; level++) {
+#ifdef FACTOR_LOCAL
         if(level == nodelevel)
           printf("*");
+#endif
         printf("level: %d groupsize: %d library: ", level, groupsize[level]);
         switch(library[level]) {
 	  case(CommBench::IPC) :
@@ -147,7 +149,6 @@ int main(int argc, char *argv[])
             printf("NCCL\n");
             break;
         }
-
       }
 
     std::vector<int> recvid;
@@ -161,6 +162,7 @@ int main(int argc, char *argv[])
     std::list<CommBench::Comm<Type>*> commlist;
     std::list<ExaComm::Command<Type>> commandlist;
     std::list<ExaComm::Command<Type>> waitlist;
+
     {
       MPI_Barrier(MPI_COMM_WORLD);
       double preproc_time = MPI_Wtime();
