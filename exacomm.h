@@ -31,7 +31,15 @@ namespace ExaComm {
     public:
     CommBench::Comm<T> *comm;
     command com;
-    Command(CommBench::Comm<T> *comm, command com) : comm(comm), com(com) {}
+    Command(CommBench::Comm<T> *comm, command com) : comm(comm), com(com) {
+      if(printid == ROOT) {
+        switch(com) {
+          case(command::start) : printf("command::start added\n"); break;
+          case(command::wait) : printf("command::wait added\n"); break;
+          case(command::run) : printf("command::run added\n"); break;
+        }
+      }
+    }
   };
 
   /*template <typename T>
@@ -76,7 +84,7 @@ namespace ExaComm {
   }*/
 
   template <typename T>
-  void run_command(std::list<Command<T>> &commandlist) {
+  void run_commandlist(std::list<Command<T>> &commandlist) {
     for(auto comm : commandlist) {
       switch(comm.com) {
         case(command::start) :
@@ -85,10 +93,14 @@ namespace ExaComm {
         case(command::wait) :
           comm.comm->wait();
           break;
-        case(command::run) :
-          comm.comm->run();
-          break;
       }
+    }
+  }
+
+  template <typename T>
+  void run_commlist(std::list<CommBench::Comm<T>*> &commlist) {
+    for(auto comm : commlist) {
+      comm->run();
     }
   }
 
@@ -159,6 +171,44 @@ namespace ExaComm {
   };
 
   template <typename T>
+  void flat(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
+
+    if(addlist.size() == 0)
+      return;
+
+    std::list<CommBench::Comm<T>*> commlist_temp;
+    for(int level = 0; level < numlevel; level++) {
+      CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level]);
+      commlist_temp.push_back(comm_temp);
+    }
+
+    for(auto &p2p : addlist) {
+      auto it = commlist_temp.end();
+      for(int level = numlevel - 1; level > -1; level--) {
+        it--;
+        if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
+          if(printid == ROOT)
+            printf("level %d ", level);
+          (*it)->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
+          break;
+        }
+      }
+    }
+    if(printid == ROOT)
+      printf("\n");
+
+    // OVERLAP ALL LEVELS
+    for(auto it = commlist_temp.begin(); it != commlist_temp.end(); ++it)
+      commandlist.push_back(Command<T>(*it, command::start));
+    for(auto it = commlist_temp.rbegin(); it != commlist_temp.rend(); ++it)
+      commandlist.push_back(Command<T>(*it, command::wait));
+
+    commlist.splice(commlist.end(), commlist_temp);
+  }
+
+#define FACTOR_LEVEL
+// #define FACTOR_LOCAL
+  template <typename T>
   void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> bcastlist, std::list<CommBench::Comm<T>*> &commlist, int level, std::list<Command<T>> &commandlist, std::list<Command<T>> &waitlist, int nodelevel) {
 
     int myid;
@@ -170,6 +220,8 @@ namespace ExaComm {
       printf("ERROR!!! groupsize[0] must be equal to numproc.\n");
       return;
     }
+    if(bcastlist.size() == 0)
+      return;
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
     commlist.push_back(comm_temp);
@@ -181,6 +233,7 @@ namespace ExaComm {
 
 #ifdef FACTOR_LEVEL
     std::vector<BCAST<T>> bcastlist_new;
+    commandlist.push_back(Command<T>(comm_temp, command::run));
 #endif
 
     //  EXIT CONDITION
@@ -196,6 +249,8 @@ namespace ExaComm {
       if(printid == ROOT)
         printf("\n");
 #ifdef FACTOR_LOCAL
+      if(level <= nodelevel)
+        commandlist.push_back(Command<T>(comm_temp, command::start));
       waitlist.push_back(Command<T>(comm_temp, command::wait));
 #endif
       return;
@@ -219,25 +274,17 @@ namespace ExaComm {
                 recvids.push_back(recvid);
             }
             if(recvids.size()) {
-              if(printid == ROOT)
-                printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
+              // if(printid == ROOT)
+              //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
               bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids.size(), recvids.data()));
             }
           }
         }
       }
 #ifdef FACTOR_LOCAL
-      if(bcastlist_new.size()) {
-        bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
-      }
+      bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
 #endif
     }
-
-#ifdef FACTOR_LOCAL
-    if(level <= nodelevel)
-      commandlist.push_back(Command<T>(comm_temp, command::start));
-    commandlist.push_back(Command<T>(comm_temp, command::wait));
-#endif
 
     // GLOBAL COMMUNICATIONS
     {
@@ -255,8 +302,8 @@ namespace ExaComm {
             }
             if(recvids.size()) {
               int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-              if(printid == ROOT)
-                printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
+              // if(printid == ROOT)
+              //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
               T *recvbuf;
               int recvoffset;
               bool found = false;
@@ -289,14 +336,194 @@ namespace ExaComm {
         }
       }
 #ifdef FACTOR_LOCAL
-      if(bcastlist_new.size())
-        bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
+      if(level <= nodelevel)
+        commandlist.push_back(Command<T>(comm_temp, command::start));
+      commandlist.push_back(Command<T>(comm_temp, command::wait));
+      bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
 #endif
     }
-
 #ifdef FACTOR_LEVEL
-    if(bcastlist_new.size())
-      bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
+    bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, commlist, level + 1, commandlist, waitlist, nodelevel);
+#endif
+  }
+
+// #define OVERLAP
+  template <typename T>
+  void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
+
+    int myid;
+    int numproc;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
+
+    // SEPARATE INTRA AND INTER NODES
+    std::vector<P2P<T>> addlist_intra;
+    std::vector<P2P<T>> addlist_inter;
+    for(auto &p2p : addlist) {
+      if(p2p.sendid / groupsize[0] == p2p.recvid / groupsize[0])
+        addlist_intra.push_back(p2p);
+      else
+        addlist_inter.push_back(p2p);
+    }
+    if(printid == ROOT) {
+      printf("point-to-point striping group size: %d numgroups: %d\n", groupsize[0], numproc / groupsize[0]);
+      printf("number of intra-comm: %zu inter-comm: %zu\n", addlist_intra.size(), addlist_inter.size());
+    }
+
+    std::vector<CommBench::Comm<T>*> split;
+    std::vector<CommBench::Comm<T>*> merge;
+    std::vector<CommBench::Comm<T>*> inter;
+    std::vector<CommBench::Comm<T>*> intra;
+
+    // INTER-NODE MIXED STRIPING
+    if(addlist_inter.size())
+    {
+      inter.push_back(new CommBench::Comm<T>(comm_mpi, lib[0]));
+      for(int level = 1; level < numlevel; level++) {
+        split.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
+        merge.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
+      }
+      for(auto &p2p : addlist_inter) {
+        int sendgroup = p2p.sendid / groupsize[0];
+        int recvgroup = p2p.recvid / groupsize[0];
+        int mygroup = myid / groupsize[0];
+        T *sendbuf_temp;
+        T *recvbuf_temp;
+        size_t splitcount = p2p.count / groupsize[0];
+#ifdef PORT_CUDA
+        if(mygroup == sendgroup && myid != p2p.sendid)
+          cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
+        if(mygroup == recvgroup && myid != p2p.recvid)
+          cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#elif defined PORT_HIP
+        if(mygroup == sendgroup && myid != p2p.sendid) 
+          hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
+        if(mygroup == recvgroup && myid != p2p.recvid) 
+          hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#endif
+        // SPLIT
+        for(int p = 0; p < groupsize[0]; p++) {
+          int recver = sendgroup * groupsize[0] + p;
+          if(printid == ROOT)
+            printf("split ");
+          if(recver != p2p.sendid) {
+            for(int level = numlevel - 1; level > -1; level--)
+              if(recver / groupsize[level] == p2p.sendid / groupsize[level]) {
+                if(printid == ROOT)
+                  printf("level %d ", level);
+                split[level - 1]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, sendbuf_temp, 0, splitcount, p2p.sendid, recver);
+                break;
+              }
+          }
+          else
+            if(printid == ROOT)
+              printf("* skip self\n");
+        }
+        // INTER
+        for(int p = 0; p < groupsize[0]; p++) {
+          if(printid == ROOT)
+            printf("inter ");
+          int sender = sendgroup * groupsize[0] + p;
+          int recver = recvgroup * groupsize[0] + p;
+          if(sender == p2p.sendid && recver == p2p.recvid)
+            inter[0]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
+          if(sender != p2p.sendid && recver == p2p.recvid)
+            inter[0]->add(sendbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
+          if(sender == p2p.sendid && recver != p2p.recvid)
+            inter[0]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, recvbuf_temp, 0, splitcount, sender, recver);
+          if(sender != p2p.sendid && recver != p2p.recvid)
+            inter[0]->add(sendbuf_temp, 0, recvbuf_temp, 0, splitcount, sender, recver);
+        }
+        // MERGE
+        for(int p = 0; p < groupsize[0]; p++) {
+          int sender = recvgroup * groupsize[0] + p;
+          if(printid == ROOT)
+            printf("merge ");
+          if(sender != p2p.recvid) {
+            for(int level = numlevel - 1; level > -1; level--)
+              if(sender / groupsize[level] == p2p.recvid / groupsize[level]) {
+                if(printid == ROOT)
+                  printf("level %d ", level);
+                merge[level - 1]->add(recvbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, p2p.recvid);
+                break;
+              }
+          }
+          else
+            if(printid == ROOT)
+              printf(" * skip self\n");
+        }
+      }
+    }
+    // INTRA-NODE MIXED FLAT
+    if(addlist_intra.size()) {
+      for(int level = 0; level < numlevel; level++)
+        intra.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
+      for(auto &p2p : addlist_intra) {
+        for(int level = numlevel - 1; level > -1; level--) {
+          if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
+            if(printid == ROOT)
+              printf("level %d ", level);
+            intra[level]->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
+            break;
+          }
+        }
+      }
+      if(printid == ROOT)
+        printf("\n");
+    }
+
+    if(printid == ROOT) {
+      printf("split size: %zu\n", split.size());
+      printf("inter size: %zu\n", inter.size());
+      printf("merge size: %zu\n", merge.size());
+      printf("intra size: %zu\n", intra.size());
+    }
+
+    // START SPLIT
+    for(auto comm : split) {
+      commlist.push_back(comm);
+      commandlist.push_back(Command<T>(comm, command::start));
+    }
+    // WAIT FOR SPLIT
+    for(auto comm : split)
+      commandlist.push_back(Command<T>(comm, command::wait));
+    // START INTER-COMMUNICATION
+    for(auto comm : inter) {
+      commlist.push_back(comm);
+      commandlist.push_back(Command<T>(comm, command::start));
+    }
+#ifdef OVERLAP
+    // START INTRA-COMMUNICATION
+    for(auto comm : intra) {
+      commlist.push_back(comm);
+      commandlist.push_back(Command<T>(comm, command::start));
+    }
+#endif
+    // WAIT FOR INTER-COMMUNICATION
+    for(auto comm : inter)
+      commandlist.push_back(Command<T>(comm, command::wait));
+    // START MERGE
+    for(auto comm : merge) {
+      commlist.push_back(comm);
+      commandlist.push_back(Command<T>(comm, command::start));
+    }
+#ifdef OVERLAP
+    // WAIT FOR INTRA-COMMUNICATION
+    for(auto comm : intra)
+      commandlist.push_back(Command<T>(comm, command::wait));
+#endif
+    // WAIT FOR MERGE
+    for(auto comm : merge)
+      commandlist.push_back(Command<T>(comm, command::wait));
+#ifndef OVERLAP
+    // START INTRA-COMMUNICATION
+    for(auto comm : intra) {
+      commlist.push_back(comm);
+      commandlist.push_back(Command<T>(comm, command::start));
+    }
+    // WAIT FOR INTRA-COMMUNICATION
+    for(auto comm : intra)
+      commandlist.push_back(Command<T>(comm, command::wait));
 #endif
   }
 
@@ -308,162 +535,55 @@ namespace ExaComm {
     std::vector<P2P<T>> addlist;
     std::vector<BCAST<T>> bcastlist;
 
-    std::vector<CommBench::Comm<T>> comm_inter;
-    std::vector<CommBench::Comm<T>> comm_intra;
-    std::vector<CommBench::Comm<T>> comm_split;
-    std::vector<CommBench::Comm<T>> comm_merge;
-
-    std::vector<T*> sendbuf_inter;
-    std::vector<T*> recvbuf_inter;
-
-    void start() {
-      for(auto &comm : comm_split)
-        comm.run();
-      for(auto &comm : comm_inter)
-        comm.launch();
-      for(auto &comm : comm_intra)
-        comm.launch();
-    }
-    void wait() {
-      for(auto &comm : comm_intra)
-        comm.wait();
-      for(auto &comm : comm_inter)
-        comm.wait();
-      for(auto &comm : comm_merge)
-        comm.run();
-    }
-
-    void init_striped(int numlevel, int groupsize[], CommBench::library lib[]) {
-
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      for(int level = 0; level < numlevel; level++)
-        comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib[level]));
-
-      std::vector<P2P<T>> addlist_inter;
-
-      for(auto &p2p : addlist) {
-        bool found = false;
-        for(int level = numlevel - 1; level > -1; level--)
-          if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
-            if(myid == ROOT)
-              printf("level %d ", level + 1);
-            comm_intra[level].add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-            found = true;
-            break;
-          }
-        if(!found) {
-          if(myid == ROOT)
-            printf("level 0  *  (%d -> %d) sendoffset %lu recvoffset %lu count %lu \n", p2p.sendid, p2p.recvid, p2p.sendoffset, p2p.recvoffset, p2p.count);
-          addlist_inter.push_back(P2P<T>(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid));
-        }
-      }
-      if(myid == ROOT) {
-        printf("* to be splitted\n");
-	printf("\n");
-      }
-
-      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib[0]));
-      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib[0]));
-
-      for(auto &p2p : addlist_inter) {
-        int sendgroup = p2p.sendid / groupsize[0];
-        int recvgroup = p2p.recvid / groupsize[0];
-        int mygroup = myid / groupsize[0];
-        T *sendbuf_temp;
-        T *recvbuf_temp;
-        size_t splitcount = p2p.count / groupsize[0];
-#ifdef PORT_CUDA
-        if(mygroup == sendgroup && myid != p2p.sendid) {
-          cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
-	  sendbuf_inter.push_back(sendbuf_temp);
-        }
-	if(mygroup == recvgroup && myid != p2p.recvid) {
-          cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
-	  recvbuf_inter.push_back(recvbuf_temp);
-        }
-#elif defined PORT_HIP
-#endif
-        for(int p = 0; p < groupsize[0]; p++) {
-          int recver = sendgroup * groupsize[0] + p;
-          if(myid == ROOT)
-            printf("split ");
-          if(recver != p2p.sendid)
-            comm_split[0].add(p2p.sendbuf, p2p.sendoffset + p * splitcount, sendbuf_temp, 0, splitcount, p2p.sendid, recver);
-	  else
-            if(myid == ROOT)
-              printf(" * \n");
-        }
-	for(int p = 0; p < groupsize[0]; p++) {
-          if(myid == ROOT)
-            printf("inter ");
-          int sender = sendgroup * groupsize[0] + p;
-          int recver = recvgroup * groupsize[0] + p;
-	  if(sender == p2p.sendid && recver == p2p.recvid)
-            comm_inter[0].add(p2p.sendbuf, p2p.sendoffset + p * splitcount, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
-	  if(sender != p2p.sendid && recver == p2p.recvid)
-            comm_inter[0].add(sendbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
-	  if(sender == p2p.sendid && recver != p2p.recvid)
-            comm_inter[0].add(p2p.sendbuf, p2p.sendoffset + p * splitcount, recvbuf_temp, 0, splitcount, sender, recver);
-	  if(sender != p2p.sendid && recver != p2p.recvid)
-            comm_inter[0].add(sendbuf_temp, 0, recvbuf_temp, 0, splitcount, sender, recver);
-        }
-        for(int p = 0; p < groupsize[0]; p++) {
-          int sender = recvgroup * groupsize[0] + p;
-          if(myid == ROOT)
-            printf("merge ");
-          if(sender != p2p.recvid)
-            comm_merge[0].add(recvbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, p2p.recvid);
-	  else
-            if(myid == ROOT)
-              printf(" * \n");
-        }
-      }
-      if(myid == ROOT) {
-        printf("* pruned\n");
-        printf("\n");
-      }
-    }
-
-    void init_mixed(int numlevel, int groupsize[], CommBench::library lib[]) {
-
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      for(int level = 0; level < numlevel; level++)
-        comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib[level]));
-
-      for(auto &p2p : addlist) {
-        bool found = false;
-        for(int level = numlevel - 1; level > -1; level--)
-          if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
-            if(myid == ROOT)
-              printf("level %d ", level + 1);
-            comm_intra[level].add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-	    found = true;
-            break;
-          }
-        if(!found) {
-          if(myid == ROOT)
-            printf("level 0 ");
-          comm_inter[0].add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-        }
-      }
-      if(myid == ROOT)
-        printf("\n");
-    }
+    std::list<CommBench::Comm<T>*> commlist;
+    std::list<Command<T>> commandlist;
+    std::list<T*> bufferlist;
 
     public:
 
-    Comm(const MPI_Comm &comm_mpi, CommBench::library lib)
-    : comm_mpi(comm_mpi) {
-      comm_inter.push_back(CommBench::Comm<T>(comm_mpi, lib));
-    }
+    Comm(const MPI_Comm &comm_mpi) : comm_mpi(comm_mpi) {}
+
+    void init(int numlevel, int groupsize[], CommBench::library lib[]) {
+
+      int myid;
+      int numproc;
+      MPI_Comm_rank(comm_mpi, &myid);
+      MPI_Comm_size(comm_mpi, &numproc);
+
+      if(printid == ROOT) {
+        printf("Initialize ExaComm with %d levels\n", numlevel);
+        for(int level = 0; level < numlevel; level++) {
+          printf("level %d groupsize %d library: ", level, groupsize[level]);
+          switch(lib[level]) {
+            case(CommBench::IPC) :
+              printf("IPC");
+              break;
+            case(CommBench::MPI) :
+              printf("MPI");
+              break;
+            case(CommBench::NCCL) :
+              printf("NCCL");
+              break;
+          }
+          if(level == 0)
+            if(groupsize[0] != numproc)
+              printf(" *");
+          printf("\n");
+        }
+        printf("\n");
+      }
+      // INIT POINT-TO-POINT
+      {
+        striped(comm_mpi, numlevel, groupsize, lib, addlist, commlist, commandlist);
+      }
+      return;
+      // INIT BROADCAST
+      {
+        std::list<Command<T>> waitlist;
+        ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist, commlist, 1, commandlist, waitlist, 1);
+        commandlist.splice(commandlist.end(), waitlist);
+      }
+    };
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
       addlist.push_back(P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
@@ -473,192 +593,264 @@ namespace ExaComm {
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, numrecv, recvid));
     }
 
-    void init_hierarchical(int numlevel, int groupsize[], CommBench::library lib[], int stripelevel) {
+    void run_commlist() {
+      for(auto comm : commlist)
+        comm->run();
+    }
 
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      // P2P COMMUNICATIONS
-      for(int level = 0; level < numlevel; level++)
-        comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib[level]));
-
-      for(auto &p2p : addlist) {
-        bool found = false;
-        for(int level = numlevel - 1; level > stripelevel - 1; level--)
-          if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
-            if(myid == ROOT)
-              printf("level %d groupsize %d", level + 1, groupsize[level]);
-            comm_intra[level].add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-            found = true;
-            break;
-          }
-        if(!found) {
-          if(myid == ROOT)
-            printf("level 0 ");
-          comm_inter[0].add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
+    void run_commandlist() {
+      for(auto &command : commandlist)
+        switch(command.com) {
+          case(ExaComm::start) : command.comm->start(); break;
+          case(ExaComm::wait) : command.comm->wait(); break;
+          case(ExaComm::run) : command.comm->run(); break;
         }
-      }
-      if(myid == ROOT)
-        printf("\n");
+    }
 
-      // BCAST COMMUNICATIONS
-      for(auto &bcast : bcastlist) {
-        int recvid_inter[bcast.recvid.size()];
-        int sendid = bcast.sendid;
-        for(auto &recvid : bcast.recvid) {
-          for(int level = 0; level < numlevel; level++) {
-            int numgroups = numproc / groupsize[0];
-            printf("sendid %d recvid %d level %d groupsize %d numgroups %d\n", sendid, recvid, level, groupsize[level], numgroups);
-          }
-        }
+    void measure(int warmup, int numiter) {
+      for(auto comm : commlist)
+        comm->measure(warmup, numiter);
+      if(printid == ROOT) {
+        printf("commlist size %zu\n", commlist.size());
+        printf("commandlist size %zu\n", commandlist.size());
+        printf("bufferlist size %zu\n", bufferlist.size());
       }
     }
 
-    void init_flat() {
-      init_mixed(0, NULL, NULL);
-    }
-
-    void init_mixed(int groupsize, CommBench::library lib) {
-      init_mixed(1, &groupsize, &lib);
-    };
-
-    void init_bcast(int groupsize, CommBench::library lib) {
-
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      comm_intra.push_back(CommBench::Comm<T>(comm_mpi, lib));
-
-      std::vector<BCAST<T>> bcast_inter;
-
-      for(auto &bcast : bcastlist) {
-        int numrecv_inter = 0;
-        int recvid_inter[bcast.recvid.size()];
-        int sendid = bcast.sendid;
-        for(auto &recvid : bcast.recvid) {
-          if(sendid / groupsize == recvid / groupsize) {
-            if(myid == ROOT)
-              printf("level 1 ");
-            comm_intra[0].add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
-          }
-          else {
-            if(myid == ROOT)
-              printf("level 0  *  (%d -> %d) sendoffset %lu recvoffset %lu count %lu \n", sendid, recvid, bcast.sendoffset, bcast.recvoffset, bcast.count);
-            recvid_inter[numrecv_inter] = recvid;
-            numrecv_inter++;
+    void report() {
+      int counter = 0;
+      for(auto it = commandlist.begin(); it != commandlist.end(); it++) {
+        if(printid == ROOT) {
+          printf("counter: %d command::", counter);
+          switch(it->com) {
+            case(ExaComm::start) : printf("start\n"); break;
+            case(ExaComm::wait) : printf("wait\n"); break;
+            case(ExaComm::run) : printf("run\n"); break;
           }
         }
-        bcast_inter.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, numrecv_inter, recvid_inter));
+        it->comm->report();
+        counter++;
       }
-      if(myid == ROOT) {
-        printf("* to be splitted and broadcasted\n");
-        printf("\n");
-      }
-
-      comm_split.push_back(CommBench::Comm<T>(comm_mpi, lib));
-      comm_merge.push_back(CommBench::Comm<T>(comm_mpi, lib));
-
-      int mygroup = myid / groupsize;
-      int numgroup = numproc / groupsize;
-
-      for(auto &bcast : bcast_inter) {
-        int sendid = bcast.sendid;
-        int sendgroup = bcast.sendid / groupsize;
-        size_t splitcount = bcast.count / groupsize;
-        T *sendbuf_temp;
-        T *recvbuf_temp;
-        // SENDING GROUP
-        if(bcast.recvid.size()) {
-          if(mygroup == sendgroup) {
-#ifdef PORT_CUDA
-            cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
-#elif defined PORT_HIP
-            hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
-#endif
-            sendbuf_inter.push_back(sendbuf_temp);
-          }
-	  for(int p = 0; p < groupsize; p++) {
-            if(myid == ROOT)
-              printf("split ");
-            int recvid = sendgroup * groupsize + p;
-            comm_split[0].add(bcast.sendbuf, bcast.sendoffset + p * splitcount, sendbuf_temp, 0, splitcount, sendid, recvid);
-          }
-        }
-	// AUXILIARY DATA STRUCTURES
-        int numrecv_group[numgroup];
-        int recvproc_group[numgroup][bcast.recvid.size()];
-        memset(numrecv_group, 0, numgroup * sizeof(int));
-        for(auto &recvid : bcast.recvid) {
-          int recvgroup = recvid / groupsize;
-          recvproc_group[recvgroup][numrecv_group[recvgroup]] = recvid;
-          numrecv_group[recvgroup]++;
-        }
-	// RECEIVING GROUPS
-        for(int g = 0; g < numgroup; g++) {
-          if(numrecv_group[g]) {
-            if(g == mygroup) {
-#ifdef PORT_CUDA
-              cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#elif defined PORT_HIP
-              hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#endif
-              recvbuf_inter.push_back(recvbuf_temp);
-	    }
-            for(int p = 0; p < groupsize; p++) {
-              if(myid == ROOT)
-                printf("inter ");
-              int recvid = g * groupsize + p;
-              int sendid = sendgroup * groupsize + p;
-              comm_inter[0].add(sendbuf_temp, 0, recvbuf_temp, 0, splitcount, sendid, recvid);
-            }
-            for(int pp = 0; pp < numrecv_group[g]; pp++) {
-              if(myid == ROOT)
-                printf("merge ");
-              int recvid = recvproc_group[g][pp];
-              for(int p = 0; p < groupsize; p++) {
-                int sendid = g * groupsize + p;
-                comm_merge[0].add(recvbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + p * splitcount, splitcount, sendid, recvid);
-	      }   
-            }
-          }
-        }
-      }
-    }
-    void run() {
-      start();
-      wait();
-    }
-    void measure(int numwarmup, int numiter) {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      for(auto &comm : comm_split) {
-        if(myid == ROOT)
-          printf("******************** measure split map ");
-        comm.measure(numwarmup, numiter);
-      }
-      for(auto &comm : comm_inter) {
-        if(myid == ROOT)
-          printf("******************** measure inter-group ");
-        comm.measure(numwarmup, numiter);
-      }
-      for(auto &comm : comm_merge) {
-        if(myid == ROOT)
-          printf("******************** measure merge map ");
-        comm.measure(numwarmup, numiter);
-      }
-      for(auto &comm : comm_intra) {
-        if(myid == ROOT)
-          printf("******************** measure intra-group ");
-        comm.measure(numwarmup, numiter);
+      if(printid == ROOT) {
+        printf("commandlist size %zu\n", commandlist.size());
+        printf("commlist size %zu\n", commlist.size());
+        printf("bufferlist size %zu\n", bufferlist.size());
       }
     }
   };
+
+#include <unistd.h>
+
+template <typename T>
+void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
+
+  int myid;
+  int numproc;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+  MPI_Comm_size(MPI_COMM_WORLD, &numproc);
+
+  int numthread = -1;
+  #pragma omp parallel
+  #pragma omp master
+  numthread = omp_get_num_threads();
+
+  double times[numiter];
+  if(myid == ROOT)
+    printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
+  for (int iter = -warmup; iter < numiter; iter++) {
+
+#ifdef PORT_CUDA
+    cudaDeviceSynchronize();
+#elif defined PORT_HIP
+    hipDeviceSynchronize();
+#endif
+    MPI_Barrier(MPI_COMM_WORLD);
+    double time = MPI_Wtime();
+    comm.run_commandlist();
+    time = MPI_Wtime() - time;
+
+    MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    if(iter < 0) {
+      if(myid == ROOT)
+        printf("warmup: %e\n", time);
+    }
+    else
+      times[iter] = time;
+  }
+  std::sort(times, times + numiter,  [](const double & a, const double & b) -> bool {return a < b;});
+
+  if(myid == ROOT) {
+    printf("%d measurement iterations (sorted):\n", numiter);
+    for(int iter = 0; iter < numiter; iter++) {
+      printf("time: %.4e", times[iter]);
+      if(iter == 0)
+        printf(" -> min\n");
+      else if(iter == numiter / 2)
+        printf(" -> median\n");
+      else if(iter == numiter - 1)
+        printf(" -> max\n");
+      else
+        printf("\n");
+    }
+    printf("\n");
+    double minTime = times[0];
+    double medTime = times[numiter / 2];
+    double maxTime = times[numiter - 1];
+    double avgTime = 0;
+    for(int iter = 0; iter < numiter; iter++)
+      avgTime += times[iter];
+    avgTime /= numiter;
+    double data = count * sizeof(int);
+    if (data < 1e3)
+      printf("data: %d bytes\n", (int)data);
+    else if (data < 1e6)
+      printf("data: %.4f KB\n", data / 1e3);
+    else if (data < 1e9)
+      printf("data: %.4f MB\n", data / 1e6);
+    else if (data < 1e12)
+      printf("data: %.4f GB\n", data / 1e9);
+    else
+      printf("data: %.4f TB\n", data / 1e12);
+    printf("minTime: %.4e us, %.4e s/GB, %.4e GB/s\n", minTime * 1e6, minTime / data * 1e9, data / minTime / 1e9);
+    printf("medTime: %.4e us, %.4e s/GB, %.4e GB/s\n", medTime * 1e6, medTime / data * 1e9, data / medTime / 1e9);
+    printf("maxTime: %.4e us, %.4e s/GB, %.4e GB/s\n", maxTime * 1e6, maxTime / data * 1e9, data / maxTime / 1e9);
+    printf("avgTime: %.4e us, %.4e s/GB, %.4e GB/s\n", avgTime * 1e6, avgTime / data * 1e9, data / avgTime / 1e9);
+    printf("\n");
+  }
 }
 
+template <typename T>
+void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T> &comm) {
+
+  int myid;
+  int numproc;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+  MPI_Comm_size(MPI_COMM_WORLD, &numproc);
+
+  int *recvbuf;
+  int *sendbuf;
+#ifdef PORT_CUDA
+  cudaMallocHost(&sendbuf, count * numproc * sizeof(int));
+  cudaMallocHost(&recvbuf, count * numproc * sizeof(int));
+#elif defined PORT_HIP
+  hipHostMalloc(&sendbuf, count * numproc * sizeof(int));
+  hipHostMalloc(&recvbuf, count * numproc * sizeof(int));
+#endif
+  
+  for(int p = 0; p < numproc; p++)
+    for(size_t i = p * count; i < (p + 1) * count; i++)
+      sendbuf[i] = i;
+#ifdef PORT_CUDA
+  cudaMemcpy(sendbuf_d, sendbuf, count * sizeof(int) * numproc, cudaMemcpyHostToDevice);
+  cudaMemset(recvbuf_d, -1, count * numproc * sizeof(int));
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  cudaDeviceSynchronize();
+#elif defined PORT_HIP
+  hipMemcpy(sendbuf_d, sendbuf, count * sizeof(int) * numproc, hipMemcpyHostToDevice);
+  hipMemset(recvbuf_d, -1, count * numproc * sizeof(int));
+  hipStream_t stream;
+  hipStreamCreate(&stream);
+  hipDeviceSynchronize();
+#endif
+  memset(recvbuf, -1, count * numproc * sizeof(int));
+
+  comm.run_commandlist();
+
+#ifdef PORT_CUDA
+  cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);
+  cudaStreamSynchronize(stream);
+#elif defined PORT_HIP
+  hipMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, hipMemcpyDeviceToHost, stream);
+  hipStreamSynchronize(stream);
+#endif
+
+  bool pass = true;
+  switch(pattern) {
+    case 0:
+      {
+        if(myid == 0) printf("VERIFY P2P\n");
+        if(myid == 15) {
+          for(size_t i = 0; i < count; i++) {
+            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+            if(recvbuf[i] != i)
+              pass = false;
+          }
+        }
+      }
+      break;
+    case 1:
+      {
+        if(myid == ROOT) printf("VERIFY GATHER\n");
+        if(myid == ROOT) {
+          for(int p = 0; p < numproc; p++)
+            for(size_t i = 0; i < count; i++) {
+              // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+              if(recvbuf[p * count + i] != i)
+                pass = false;
+            }
+        }
+      }
+      break;
+    case 2:
+      {
+        if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d\n", ROOT);
+        for(size_t i = 0; i < count; i++) {
+          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          if(recvbuf[i] != myid * count + i)
+            pass = false;
+        }
+      }
+      break;
+    case 4:
+      {
+        if(myid == ROOT) printf("VERIFY BCAST ROOT = %d\n", ROOT);
+        for(size_t i = 0; i < count; i++) {
+          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          if(recvbuf[i] != i)
+            pass = false;
+        }
+      }
+      break;
+    case 5:
+      {
+        if(myid == ROOT) printf("VERIFY ALL-TO-ALL\n");
+        for(int p = 0; p < numproc; p++)
+          for(size_t i = 0; i < count; i++) {
+            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+            if(recvbuf[p * count + i] != myid * count + i)
+              pass = false;
+          }
+      }
+      break;
+    case 7:
+      {
+        if(myid == ROOT) printf("VERIFY ALL-GATHER\n");
+        for(int p = 0; p < numproc; p++)
+          for(size_t i = 0; i < count; i++) {
+            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+            if(recvbuf[p * count + i] != i)
+              pass = false;
+          }
+      }
+      break;
+  }
+
+  MPI_Allreduce(MPI_IN_PLACE, &pass, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+  if(myid == ROOT) {
+    if(pass) 
+      printf("PASSED!\n");
+    else 
+      printf("FAILED!!!\n");
+  }
+
+#ifdef PORT_CUDA
+  cudaFreeHost(sendbuf);
+  cudaFreeHost(recvbuf);
+#elif defined PORT_HIP
+  hipHostFree(sendbuf);
+  hipHostFree(recvbuf);
+#endif
+};
+
+}
