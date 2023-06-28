@@ -111,37 +111,40 @@ int main(int argc, char *argv[])
   recvbuf_d = new Type[count * numproc];
 #endif
 
+  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltotall, allreduce, allgather, reducescatter};
   {
     ExaComm::printid = myid;
     ExaComm::Comm<Type> bench(MPI_COMM_WORLD);
 
     switch (pattern) {
-      case 0:
+      case pt2pt:
         bench.add(sendbuf_d, 0, recvbuf_d, 0, count, 0, 4);
         break;
-      case 1:
+      case gather:
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
-      case 2:
+      case scatter:
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
-      case 4: {
-        // for(int p = 0; p < numproc; p++)
-        //   bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
-	int recvid[numproc];
+      case broadcast :
+      {
+        for(int p = 0; p < numproc; p++)
+          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
+	/*int recvid[numproc];
         for(int p = 0 ; p < numproc; p++)
           recvid[p] = p;
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);*/
         break;
       }
-      case 5:
+      case alltoall :
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
             bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
-      case 7:
+      case allgather :
+      {
         for(int sender = 0; sender < numproc; sender++) {
           // for(int recver = 0; recver < numproc; recver++)
           //   bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
@@ -151,16 +154,17 @@ int main(int argc, char *argv[])
           bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
 	}
         break;
+      }
     }
 
-    int nodesize = numproc;
-    int numlevel = 1;
-    int groupsize[4] = {nodesize, 8, 4, 2};
+    int nodesize = 8;
+    int numlevel = 2;
+    int groupsize[4] = {nodesize, 8, 1, 2};
     CommBench::library library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     bench.init(numlevel, groupsize, library);
 
-    // bench.measure(warmup, numiter);
+    bench.measure(warmup, numiter);
     bench.report();
 
     ExaComm::measure(count * numproc, warmup, numiter, bench);

@@ -170,42 +170,6 @@ namespace ExaComm {
     }
   };
 
-  template <typename T>
-  void flat(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
-
-    if(addlist.size() == 0)
-      return;
-
-    std::list<CommBench::Comm<T>*> commlist_temp;
-    for(int level = 0; level < numlevel; level++) {
-      CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level]);
-      commlist_temp.push_back(comm_temp);
-    }
-
-    for(auto &p2p : addlist) {
-      auto it = commlist_temp.end();
-      for(int level = numlevel - 1; level > -1; level--) {
-        it--;
-        if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
-          if(printid == ROOT)
-            printf("level %d ", level);
-          (*it)->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-          break;
-        }
-      }
-    }
-    if(printid == ROOT)
-      printf("\n");
-
-    // OVERLAP ALL LEVELS
-    for(auto it = commlist_temp.begin(); it != commlist_temp.end(); ++it)
-      commandlist.push_back(Command<T>(*it, command::start));
-    for(auto it = commlist_temp.rbegin(); it != commlist_temp.rend(); ++it)
-      commandlist.push_back(Command<T>(*it, command::wait));
-
-    commlist.splice(commlist.end(), commlist_temp);
-  }
-
 #define FACTOR_LEVEL
 // #define FACTOR_LOCAL
   template <typename T>
@@ -347,7 +311,35 @@ namespace ExaComm {
 #endif
   }
 
-// #define OVERLAP
+  template <typename T>
+  void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<BCAST<T>> &bcastlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
+
+    int myid;
+    int numproc;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
+
+    // SEPARATE INTRA AND INTER NODES
+    std::vector<BCAST<T>> bacstlist_intra;
+    std::vector<BCAST<T>> bcastlist_inter;
+    for(auto &p2p : bcastlist) {
+      int sendid = p2p.sendid;
+      for(auto recvid = p2p.recvid) {
+      }
+      if(p2p.sendid / groupsize[0] == p2p.recvid / groupsize[0])
+        addlist_intra.push_back(p2p);
+      else
+        addlist_inter.push_back(p2p);
+    }
+    if(printid == ROOT) {
+      printf("broadcast striping group size: %d numgroups: %d\n", groupsize[0], numproc / groupsize[0]);
+      printf("number of intra-comm: %zu inter-comm: %zu\n", addlist_intra.size(), addlist_inter.size());
+    }
+
+
+  }
+
+#define OVERLAP
   template <typename T>
   void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
 
@@ -478,35 +470,39 @@ namespace ExaComm {
       printf("merge size: %zu\n", merge.size());
       printf("intra size: %zu\n", intra.size());
     }
+    // PUSH SPLIT
+    for(auto comm : split)
+      commlist.push_back(comm);
+    // PUSH INTER
+    for(auto comm : inter)
+      commlist.push_back(comm);
+    // PUSH MERGE
+    for(auto comm : merge)
+      commlist.push_back(comm);
+    // PUSH INTRA
+    for(auto comm : intra)
+      commlist.push_back(comm);
 
     // START SPLIT
-    for(auto comm : split) {
-      commlist.push_back(comm);
+    for(auto comm : split)
       commandlist.push_back(Command<T>(comm, command::start));
-    }
     // WAIT FOR SPLIT
     for(auto comm : split)
       commandlist.push_back(Command<T>(comm, command::wait));
     // START INTER-COMMUNICATION
-    for(auto comm : inter) {
-      commlist.push_back(comm);
+    for(auto comm : inter)
       commandlist.push_back(Command<T>(comm, command::start));
-    }
 #ifdef OVERLAP
     // START INTRA-COMMUNICATION
-    for(auto comm : intra) {
-      commlist.push_back(comm);
+    for(auto comm : intra)
       commandlist.push_back(Command<T>(comm, command::start));
-    }
 #endif
     // WAIT FOR INTER-COMMUNICATION
     for(auto comm : inter)
       commandlist.push_back(Command<T>(comm, command::wait));
     // START MERGE
-    for(auto comm : merge) {
-      commlist.push_back(comm);
+    for(auto comm : merge)
       commandlist.push_back(Command<T>(comm, command::start));
-    }
 #ifdef OVERLAP
     // WAIT FOR INTRA-COMMUNICATION
     for(auto comm : intra)
@@ -517,10 +513,8 @@ namespace ExaComm {
       commandlist.push_back(Command<T>(comm, command::wait));
 #ifndef OVERLAP
     // START INTRA-COMMUNICATION
-    for(auto comm : intra) {
-      commlist.push_back(comm);
+    for(auto comm : intra)
       commandlist.push_back(Command<T>(comm, command::start));
-    }
     // WAIT FOR INTRA-COMMUNICATION
     for(auto comm : intra)
       commandlist.push_back(Command<T>(comm, command::wait));
