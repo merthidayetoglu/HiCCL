@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  int optimization = atoi(argv[2]);
+  int numbatch = atoi(argv[2]);
   size_t count = atol(argv[3]);
   int warmup = atoi(argv[4]);
   int numiter = atoi(argv[5]);
@@ -83,8 +83,17 @@ int main(int argc, char *argv[])
     printf("Number of warmup %d\n", warmup);
     printf("Number of iterations %d\n", numiter);
 
-    printf("Pattern: %d\n", pattern);
-    printf("Optimization: %d\n", optimization);
+    printf("Pattern: ");
+    switch(pattern) {
+      case ExaComm::gather : printf("Gather\n"); break;
+      case ExaComm::scatter: printf("Scatter\n"); break;
+      case ExaComm::reduce: printf("Reduce\n"); break;
+      case ExaComm::broadcast : printf("Broadcast\n"); break;
+      case ExaComm::alltoall : printf("All-to-All\n"); break;
+      case ExaComm::allgather : printf("All-Gather\n"); break;
+      case ExaComm::allreduce : printf("All-Reduce\n"); break;
+    }
+    printf("Number of batches: %d\n", numbatch);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -111,24 +120,23 @@ int main(int argc, char *argv[])
   recvbuf_d = new Type[count * numproc];
 #endif
 
-  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltotall, allreduce, allgather, reducescatter};
   {
-    ExaComm::printid = myid;
+    ExaComm::printid = -1;//myid;
     ExaComm::Comm<Type> bench(MPI_COMM_WORLD);
 
     switch (pattern) {
-      case pt2pt:
+      case ExaComm::pt2pt :
         bench.add(sendbuf_d, 0, recvbuf_d, 0, count, 0, 4);
         break;
-      case gather:
+      case ExaComm::gather :
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
-      case scatter:
+      case ExaComm::scatter :
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
-      case broadcast :
+      case ExaComm::broadcast :
       {
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
@@ -138,34 +146,39 @@ int main(int argc, char *argv[])
         bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);*/
         break;
       }
-      case alltoall :
+      case ExaComm::alltoall :
+      {
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
             bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
-      case allgather :
+      }
+      case ExaComm::allgather :
       {
         for(int sender = 0; sender < numproc; sender++) {
-          // for(int recver = 0; recver < numproc; recver++)
-          //   bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
-          int recvid[numproc];    
+          for(int recver = 0; recver < numproc; recver++)
+            bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+          /*int recvid[numproc];    
           for(int p = 0 ; p < numproc; p++)
             recvid[p] = p;
-          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);
+          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);*/
 	}
         break;
       }
     }
 
-    int nodesize = 8;
     int numlevel = 2;
-    int groupsize[4] = {nodesize, 8, 1, 2};
+    int nodesize = 8;
+    int groupsize[4] = {nodesize, 8, 1, 1};
     CommBench::library library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
-    bench.init(numlevel, groupsize, library);
+    bench.init(numlevel, groupsize, library, numbatch);
 
-    bench.measure(warmup, numiter);
-    bench.report();
+    // bench.run_batch();
+    // bench.overlap_batch();
+
+    //bench.measure(warmup, numiter);
+    //bench.report();
 
     ExaComm::measure(count * numproc, warmup, numiter, bench);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, bench);

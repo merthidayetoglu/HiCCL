@@ -25,6 +25,7 @@ namespace ExaComm {
   FILE *pFile;
 
   enum command {start, wait, run};
+  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltoall, allreduce, allgather, reducescatter};
 
   template <typename T>
   struct Command {
@@ -311,7 +312,7 @@ namespace ExaComm {
 #endif
   }
 
-  template <typename T>
+  /*template <typename T>
   void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<BCAST<T>> &bcastlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
 
     int myid;
@@ -337,9 +338,9 @@ namespace ExaComm {
     }
 
 
-  }
+  }*/
 
-#define OVERLAP
+ #define OVERLAP
   template <typename T>
   void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
 
@@ -460,6 +461,7 @@ namespace ExaComm {
           }
         }
       }
+
       if(printid == ROOT)
         printf("\n");
     }
@@ -533,11 +535,14 @@ namespace ExaComm {
     std::list<Command<T>> commandlist;
     std::list<T*> bufferlist;
 
+    // PIPELINING
+    std::vector<std::list<CommBench::Comm<T>*>> comm_batch;
+
     public:
 
     Comm(const MPI_Comm &comm_mpi) : comm_mpi(comm_mpi) {}
 
-    void init(int numlevel, int groupsize[], CommBench::library lib[]) {
+    void init(int numlevel, int groupsize[], CommBench::library lib[], int numbatch) {
 
       int myid;
       int numproc;
@@ -568,7 +573,22 @@ namespace ExaComm {
       }
       // INIT POINT-TO-POINT
       {
-        striped(comm_mpi, numlevel, groupsize, lib, addlist, commlist, commandlist);
+        std::vector<std::vector<P2P<T>>> p2p_batch(numbatch);
+        for(auto &p2p : addlist) {
+          int batchsize = p2p.count / numbatch;
+          for(int batch = 0; batch < numbatch; batch++)
+            p2p_batch[batch].push_back(P2P<T>(p2p.sendbuf, p2p.sendoffset + batch * batchsize, p2p.recvbuf, p2p.recvoffset + batch * batchsize, batchsize, p2p.sendid, p2p.recvid));
+        }
+        std::vector<std::list<Command<T>>> command_batch(numbatch);
+        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
+        // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
+        for(int batch = 0; batch < numbatch; batch++)
+          for(int c = 0; c < batch; c++)
+            comm_batch[batch].push_back(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
+        for(int batch = 0; batch < numbatch; batch++)
+          striped(comm_mpi, numlevel, groupsize, lib, p2p_batch[batch], comm_batch[batch], command_batch[batch]);
+        this->comm_batch = comm_batch;
+        // striped(comm_mpi, numlevel, groupsize, lib, addlist, commlist, commandlist);
       }
       return;
       // INIT BROADCAST
@@ -585,6 +605,37 @@ namespace ExaComm {
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int numrecv, int recvid[]) {
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, numrecv, recvid));
+    }
+
+    void overlap_batch() {
+
+      using Iter = typename std::list<CommBench::Comm<T>*>::iterator;
+      std::vector<Iter> commptr(comm_batch.size());
+      for(int i = 0; i < comm_batch.size(); i++)
+        commptr[i] = comm_batch[i].begin();
+
+      bool finished = false;
+      while(!finished) {
+        finished = true;
+        for(int i = 0; i < comm_batch.size(); i++)
+          if(commptr[i] != comm_batch[i].end())
+            (*commptr[i])->start();
+        for(int i = 0; i < comm_batch.size(); i++)
+          if(commptr[i] != comm_batch[i].end())
+            (*commptr[i])->wait();
+        for(int i = 0; i < comm_batch.size(); i++)
+          if(commptr[i] != comm_batch[i].end()) {
+            commptr[i]++;
+            finished = false;
+          }
+      }
+    }
+
+
+    void run_batch() {
+      for(auto list : comm_batch)
+        for(auto comm : list)
+          comm->run();
     }
 
     void run_commlist() {
@@ -608,6 +659,15 @@ namespace ExaComm {
         printf("commlist size %zu\n", commlist.size());
         printf("commandlist size %zu\n", commandlist.size());
         printf("bufferlist size %zu\n", bufferlist.size());
+      }
+      for(auto &list : comm_batch)
+        for(auto comm : list)
+          comm->measure(warmup, numiter);
+      if(printid == ROOT) {
+        printf("comm_batch size %zu: ", comm_batch.size());
+        for(int i = 0; i < comm_batch.size(); i++)
+          printf("%zu ", comm_batch[i].size());
+        printf("\n");
       }
     }
 
@@ -660,7 +720,9 @@ void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    comm.run_commandlist();
+   //  comm.run_commandlist();
+    // comm.run_batch();
+    comm.overlap_batch();
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -749,7 +811,10 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T>
 #endif
   memset(recvbuf, -1, count * numproc * sizeof(int));
 
-  comm.run_commandlist();
+  //comm.run_commandlist();
+  //comm.run_commbatch();
+  //comm.run_batch();
+  comm.overlap_batch();
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);
