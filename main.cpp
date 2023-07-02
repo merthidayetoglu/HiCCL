@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 #include "../CommBench/verification/coll.h"
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 #endif
 
   {
-    ExaComm::printid = -1;//myid;
+    ExaComm::printid = myid;
     ExaComm::Comm<Type> bench(MPI_COMM_WORLD);
 
     switch (pattern) {
@@ -138,12 +138,12 @@ int main(int argc, char *argv[])
         break;
       case ExaComm::broadcast :
       {
-        for(int p = 0; p < numproc; p++)
-          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p);
-	/*int recvid[numproc];
+        /* for(int p = 0; p < numproc; p++)
+          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p); */
+        std::vector<int> recvids;
         for(int p = 0 ; p < numproc; p++)
-          recvid[p] = p;
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, numproc, recvid);*/
+          recvids.push_back(p);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, recvids);
         break;
       }
       case ExaComm::alltoall :
@@ -156,29 +156,28 @@ int main(int argc, char *argv[])
       case ExaComm::allgather :
       {
         for(int sender = 0; sender < numproc; sender++) {
-          for(int recver = 0; recver < numproc; recver++)
-            bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
-          /*int recvid[numproc];    
+          //for(int recver = 0; recver < numproc; recver++)
+          //  bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
+          std::vector<int> recvids;
           for(int p = 0 ; p < numproc; p++)
-            recvid[p] = p;
-          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, numproc, recvid);*/
+            recvids.push_back(p);
+          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recvids);
 	}
         break;
       }
     }
 
-    int numlevel = 2;
-    int nodesize = 8;
-    int groupsize[4] = {nodesize, 8, 1, 1};
-    CommBench::library library[4] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[4] = {numproc, 16, 8, 4};
+    CommBench::library library[4] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC};
 
     bench.init(numlevel, groupsize, library, numbatch);
 
     // bench.run_batch();
     // bench.overlap_batch();
 
-    //bench.measure(warmup, numiter);
-    //bench.report();
+    bench.measure(warmup, numiter);
+    // bench.report();
 
     ExaComm::measure(count * numproc, warmup, numiter, bench);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, bench);

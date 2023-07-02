@@ -131,11 +131,8 @@ namespace ExaComm {
     const int sendid;
     std::vector<int> recvid;
 
-    BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int numrecv, int recvid[])
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) {
-      for(int i = 0; i < numrecv; i++)
-        this->recvid.push_back(recvid[i]);
-    }
+    BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvid)
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvid(recvid) {}
     void report(int id) {
       if(printid == sendid) {
         MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
@@ -171,8 +168,8 @@ namespace ExaComm {
     }
   };
 
-#define FACTOR_LEVEL
-// #define FACTOR_LOCAL
+// #define FACTOR_LEVEL
+  #define FACTOR_LOCAL
   template <typename T>
   void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> bcastlist, std::list<CommBench::Comm<T>*> &commlist, int level, std::list<Command<T>> &commandlist, std::list<Command<T>> &waitlist, int nodelevel) {
 
@@ -241,7 +238,7 @@ namespace ExaComm {
             if(recvids.size()) {
               // if(printid == ROOT)
               //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
-              bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids.size(), recvids.data()));
+              bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids));
             }
           }
         }
@@ -294,7 +291,7 @@ namespace ExaComm {
               }
               comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
               if(recvids.size()) {
-                bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids.size(), recvids.data()));
+                bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids));
               }
             }
           }
@@ -573,29 +570,47 @@ namespace ExaComm {
       }
       // INIT POINT-TO-POINT
       {
+        // PARTITION INTO BATCHES
         std::vector<std::vector<P2P<T>>> p2p_batch(numbatch);
         for(auto &p2p : addlist) {
           int batchsize = p2p.count / numbatch;
           for(int batch = 0; batch < numbatch; batch++)
             p2p_batch[batch].push_back(P2P<T>(p2p.sendbuf, p2p.sendoffset + batch * batchsize, p2p.recvbuf, p2p.recvoffset + batch * batchsize, batchsize, p2p.sendid, p2p.recvid));
         }
-        std::vector<std::list<Command<T>>> command_batch(numbatch);
         std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
         // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
         for(int batch = 0; batch < numbatch; batch++)
           for(int c = 0; c < batch; c++)
             comm_batch[batch].push_back(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
-        for(int batch = 0; batch < numbatch; batch++)
-          striped(comm_mpi, numlevel, groupsize, lib, p2p_batch[batch], comm_batch[batch], command_batch[batch]);
+	// ADD DUTY COMMUNICATORS INTO THE PIPELINE
+        for(int batch = 0; batch < numbatch; batch++) {
+          std::list<Command<T>> commandlist;
+          striped(comm_mpi, numlevel, groupsize, lib, p2p_batch[batch], comm_batch[batch], commandlist);
+        }
         this->comm_batch = comm_batch;
         // striped(comm_mpi, numlevel, groupsize, lib, addlist, commlist, commandlist);
       }
-      return;
       // INIT BROADCAST
       {
-        std::list<Command<T>> waitlist;
-        ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist, commlist, 1, commandlist, waitlist, 1);
-        commandlist.splice(commandlist.end(), waitlist);
+        // PARTITION INTO BATCHES
+        std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
+        for(auto &bcast : bcastlist) {
+          int batchsize = bcast.count / numbatch;
+          for(int batch = 0; batch < numbatch; batch++)
+            bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvid));
+        }
+        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
+        // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
+        for(int batch = 0; batch < numbatch; batch++)
+          for(int c = 0; c < batch; c++)
+            comm_batch[batch].push_back(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
+	// ADD DUTY COMMUNICATOPNS INTO THE PIPELINE
+	for(int batch = 0; batch < numbatch; batch++) {
+          std::list<Command<T>> waitlist;
+	  std::list<Command<T>> commandlist;
+          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], 1, commandlist, waitlist, 1);
+        }
+        this->comm_batch = comm_batch;
       }
     };
 
@@ -603,8 +618,8 @@ namespace ExaComm {
       addlist.push_back(P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
 
-    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int numrecv, int recvid[]) {
-      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, numrecv, recvid));
+    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvid) {
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
 
     void overlap_batch() {
@@ -630,7 +645,6 @@ namespace ExaComm {
           }
       }
     }
-
 
     void run_batch() {
       for(auto list : comm_batch)
@@ -813,7 +827,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T>
 
   //comm.run_commandlist();
   //comm.run_commbatch();
-  //comm.run_batch();
+  // comm.run_batch();
   comm.overlap_batch();
 
 #ifdef PORT_CUDA
