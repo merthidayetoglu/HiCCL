@@ -568,6 +568,7 @@ namespace ExaComm {
         printf("\n");
       }
       // INIT POINT-TO-POINT
+      if(addlist.size())
       {
         // PARTITION INTO BATCHES
         std::vector<std::vector<P2P<T>>> p2p_batch(numbatch);
@@ -590,6 +591,7 @@ namespace ExaComm {
         // striped(comm_mpi, numlevel, groupsize, lib, addlist, commlist, commandlist);
       }
       // INIT BROADCAST
+      if(bcastlist.size())
       {
         // PARTITION INTO BATCHES
         std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
