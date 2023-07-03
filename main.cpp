@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 #include "../CommBench/verification/coll.h"
@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
     }
 
     int numlevel = 4;
-    int groupsize[4] = {numproc, 16, 8, 4};
-    CommBench::library library[4] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC};
+    int groupsize[6] = {numproc, 8, 4, 2, 2, 1};
+    CommBench::library library[6] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     bench.init(numlevel, groupsize, library, numbatch);
 

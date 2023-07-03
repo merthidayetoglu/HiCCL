@@ -68,7 +68,7 @@ namespace ExaComm {
           }
           else {
             // fprintf(pFile, "wait %d\n", i);
-            // (*commptr[i])->wait();
+            (*commptr[i])->wait();
             commptr[i]++;
 	    if(commptr[i] != commlist[i].end()) {
               // fprintf(pFile, "start next %d\n", i);
@@ -168,8 +168,8 @@ namespace ExaComm {
     }
   };
 
-// #define FACTOR_LEVEL
-  #define FACTOR_LOCAL
+  #define FACTOR_LEVEL
+  // #define FACTOR_LOCAL
   template <typename T>
   void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> bcastlist, std::list<CommBench::Comm<T>*> &commlist, int level, std::list<Command<T>> &commandlist, std::list<Command<T>> &waitlist, int nodelevel) {
 
@@ -458,7 +458,6 @@ namespace ExaComm {
           }
         }
       }
-
       if(printid == ROOT)
         printf("\n");
     }
@@ -734,9 +733,10 @@ void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-   //  comm.run_commandlist();
+    // comm.run_commandlist();
     // comm.run_batch();
     comm.overlap_batch();
+    // comm.run_concurrent();
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
