@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 #include "../CommBench/verification/coll.h"
@@ -165,13 +165,20 @@ int main(int argc, char *argv[])
 	}
         break;
       }
+      default:
+        if(myid == ROOT)
+          printf("invalid collective option\n");
     }
 
-    int numlevel = 4;
-    int groupsize[6] = {numproc, 8, 4, 2, 2, 1};
-    CommBench::library library[6] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 2;
+    int groupsize[6] = {4, 4, 4, 2, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
+    double time = MPI_Wtime();
     bench.init(numlevel, groupsize, library, numbatch);
+    time = MPI_Wtime() - time;
+    if(myid == ROOT)
+      printf("preproc time: %e\n", time);
 
     // bench.run_batch();
     // bench.overlap_batch();
