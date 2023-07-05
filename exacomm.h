@@ -394,7 +394,6 @@ namespace ExaComm {
 
     const MPI_Comm comm_mpi;
 
-    // std::vector<P2P<T>> addlist;
     std::vector<BCAST<T>> bcastlist;
 
     std::list<CommBench::Comm<T>*> commlist;
