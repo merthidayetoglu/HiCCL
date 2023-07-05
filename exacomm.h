@@ -23,6 +23,7 @@ namespace ExaComm {
 
   int printid;
   FILE *pFile;
+  size_t buffsize = 0;
 
   enum command {start, wait, run};
   enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltoall, allreduce, allgather, reducescatter};
@@ -104,21 +105,6 @@ namespace ExaComm {
       comm->run();
     }
   }
-
-  template <typename T>
-  struct P2P {
-    public:
-    T* const sendbuf;
-    const size_t sendoffset;
-    T* const recvbuf;
-    size_t const recvoffset;
-    size_t const count;
-    int const sendid;
-    int const recvid;
-
-    P2P(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvid(recvid) {}
-  };
 
   template <typename T>
   struct BCAST {
@@ -286,6 +272,7 @@ namespace ExaComm {
 #elif defined PORT_HIP
                 hipMalloc(&recvbuf, bcast.count * sizeof(T));
 #endif
+                buffsize += bcast.count;
                 recvoffset = 0;
                 printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
               }
@@ -309,34 +296,6 @@ namespace ExaComm {
 #endif
   }
 
-  /*template <typename T>
-  void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<BCAST<T>> &bcastlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
-
-    // SEPARATE INTRA AND INTER NODES
-    std::vector<BCAST<T>> bacstlist_intra;
-    std::vector<BCAST<T>> bcastlist_inter;
-    for(auto &p2p : bcastlist) {
-      int sendid = p2p.sendid;
-      for(auto recvid = p2p.recvid) {
-      }
-      if(p2p.sendid / groupsize[0] == p2p.recvid / groupsize[0])
-        addlist_intra.push_back(p2p);
-      else
-        addlist_inter.push_back(p2p);
-    }
-    if(printid == ROOT) {
-      printf("broadcast striping group size: %d numgroups: %d\n", groupsize[0], numproc / groupsize[0]);
-      printf("number of intra-comm: %zu inter-comm: %zu\n", addlist_intra.size(), addlist_inter.size());
-    }
-
-
-  }*/
-
 
   template <typename T>
   void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> &bcastlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
@@ -359,9 +318,9 @@ namespace ExaComm {
         else
           recvid_inter.push_back(recvid);
       if(recvid_inter.size())
-        bcastlist_inter.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvid_inter));
+        bcastlist_inter.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvid));
       else
-        bcastlist_intra.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvid_intra));
+        bcastlist_intra.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvid));
     }
     if(printid == ROOT) {
       printf("broadcast striping group size: %d numgroups: %d\n", groupsize[0], numproc / groupsize[0]);
@@ -370,7 +329,8 @@ namespace ExaComm {
       printf("\n");
     }
 
-    if(bcastlist_inter.size()) {
+    if(bcastlist_inter.size())
+    {
       int stripelevel = -1;
       for(int level = numlevel - 1; level > -1; level--)
         if(groupsize[level] >= groupsize[0]) {
@@ -382,17 +342,19 @@ namespace ExaComm {
       std::vector<CommBench::Comm<T>*> split;
       for(int level = stripelevel; level < numlevel; level++)
         split.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
-      for(auto &bcast : bcastlist) {
+      for(auto &bcast : bcastlist_inter) {
         int sendgroup = bcast.sendid / groupsize[0];
         int mygroup = myid / groupsize[0];
         T *sendbuf_temp;
         size_t splitcount = bcast.count / groupsize[0];
-        if(mygroup == sendgroup && myid != bcast.sendid)
+        if(mygroup == sendgroup && myid != bcast.sendid) {
 #ifdef PORT_CUDA
           cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
 #elif defined PORT_HIP
           hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
 #endif
+	  buffsize += splitcount;
+        }
         // SPLIT
         for(int p = 0; p < groupsize[0]; p++) {
           int recver = sendgroup * groupsize[0] + p;
@@ -418,7 +380,7 @@ namespace ExaComm {
       }
       commlist.insert( commlist.end(), split.begin(), split.end() );
     }
-
+    // CREATE PROADCAST TREE RECURSIVELY
     std::vector<int> groupsize_temp(numlevel);
     groupsize_temp[0] = numproc;
     for(int level = 1; level  < numlevel; level++)
@@ -426,189 +388,6 @@ namespace ExaComm {
     std::list<Command<T>> waitlist;
     ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, commlist, 1, commandlist, waitlist, 1);
   }
-
-
- /*#define OVERLAP
-  template <typename T>
-  void striped(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], const std::vector<P2P<T>> &addlist, std::list<CommBench::Comm<T>*> &commlist, std::list<Command<T>> &commandlist) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
-
-    // SEPARATE INTRA AND INTER NODES
-    std::vector<P2P<T>> addlist_intra;
-    std::vector<P2P<T>> addlist_inter;
-    for(auto &p2p : addlist) {
-      if(p2p.sendid / groupsize[0] == p2p.recvid / groupsize[0])
-        addlist_intra.push_back(p2p);
-      else
-        addlist_inter.push_back(p2p);
-    }
-    if(printid == ROOT) {
-      printf("point-to-point striping group size: %d numgroups: %d\n", groupsize[0], numproc / groupsize[0]);
-      printf("number of intra-comm: %zu inter-comm: %zu\n", addlist_intra.size(), addlist_inter.size());
-    }
-
-    std::vector<CommBench::Comm<T>*> split;
-    std::vector<CommBench::Comm<T>*> merge;
-    std::vector<CommBench::Comm<T>*> inter;
-    std::vector<CommBench::Comm<T>*> intra;
-
-    // INTER-NODE MIXED STRIPING
-    if(addlist_inter.size())
-    {
-      inter.push_back(new CommBench::Comm<T>(comm_mpi, lib[0]));
-      for(int level = 1; level < numlevel; level++) {
-        split.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
-        merge.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
-      }
-      for(auto &p2p : addlist_inter) {
-        int sendgroup = p2p.sendid / groupsize[0];
-        int recvgroup = p2p.recvid / groupsize[0];
-        int mygroup = myid / groupsize[0];
-        T *sendbuf_temp;
-        T *recvbuf_temp;
-        size_t splitcount = p2p.count / groupsize[0];
-#ifdef PORT_CUDA
-        if(mygroup == sendgroup && myid != p2p.sendid)
-          cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
-        if(mygroup == recvgroup && myid != p2p.recvid)
-          cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#elif defined PORT_HIP
-        if(mygroup == sendgroup && myid != p2p.sendid) 
-          hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
-        if(mygroup == recvgroup && myid != p2p.recvid) 
-          hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#endif
-        // SPLIT
-        for(int p = 0; p < groupsize[0]; p++) {
-          int recver = sendgroup * groupsize[0] + p;
-          if(printid == ROOT)
-            printf("split ");
-          if(recver != p2p.sendid) {
-            for(int level = numlevel - 1; level > -1; level--)
-              if(recver / groupsize[level] == p2p.sendid / groupsize[level]) {
-                if(printid == ROOT)
-                  printf("level %d ", level);
-                split[level - 1]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, sendbuf_temp, 0, splitcount, p2p.sendid, recver);
-                break;
-              }
-          }
-          else
-            if(printid == ROOT)
-              printf("* skip self\n");
-        }
-        // INTER
-        for(int p = 0; p < groupsize[0]; p++) {
-          if(printid == ROOT)
-            printf("inter ");
-          int sender = sendgroup * groupsize[0] + p;
-          int recver = recvgroup * groupsize[0] + p;
-          if(sender == p2p.sendid && recver == p2p.recvid)
-            inter[0]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
-          if(sender != p2p.sendid && recver == p2p.recvid)
-            inter[0]->add(sendbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, recver);
-          if(sender == p2p.sendid && recver != p2p.recvid)
-            inter[0]->add(p2p.sendbuf, p2p.sendoffset + p * splitcount, recvbuf_temp, 0, splitcount, sender, recver);
-          if(sender != p2p.sendid && recver != p2p.recvid)
-            inter[0]->add(sendbuf_temp, 0, recvbuf_temp, 0, splitcount, sender, recver);
-        }
-        // MERGE
-        for(int p = 0; p < groupsize[0]; p++) {
-          int sender = recvgroup * groupsize[0] + p;
-          if(printid == ROOT)
-            printf("merge ");
-          if(sender != p2p.recvid) {
-            for(int level = numlevel - 1; level > -1; level--)
-              if(sender / groupsize[level] == p2p.recvid / groupsize[level]) {
-                if(printid == ROOT)
-                  printf("level %d ", level);
-                merge[level - 1]->add(recvbuf_temp, 0, p2p.recvbuf, p2p.recvoffset + p * splitcount, splitcount, sender, p2p.recvid);
-                break;
-              }
-          }
-          else
-            if(printid == ROOT)
-              printf(" * skip self\n");
-        }
-      }
-    }
-    // INTRA-NODE MIXED FLAT
-    if(addlist_intra.size()) {
-      for(int level = 0; level < numlevel; level++)
-        intra.push_back(new CommBench::Comm<T>(comm_mpi, lib[level]));
-      for(auto &p2p : addlist_intra) {
-        for(int level = numlevel - 1; level > -1; level--) {
-          if(p2p.sendid / groupsize[level] == p2p.recvid / groupsize[level]) {
-            if(printid == ROOT)
-              printf("level %d ", level);
-            intra[level]->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendid, p2p.recvid);
-            break;
-          }
-        }
-      }
-      if(printid == ROOT)
-        printf("\n");
-    }
-
-    if(printid == ROOT) {
-      printf("split size: %zu\n", split.size());
-      printf("inter size: %zu\n", inter.size());
-      printf("merge size: %zu\n", merge.size());
-      printf("intra size: %zu\n", intra.size());
-    }
-    // PUSH SPLIT
-    for(auto comm : split)
-      commlist.push_back(comm);
-    // PUSH INTER
-    for(auto comm : inter)
-      commlist.push_back(comm);
-    // PUSH MERGE
-    for(auto comm : merge)
-      commlist.push_back(comm);
-    // PUSH INTRA
-    for(auto comm : intra)
-      commlist.push_back(comm);
-
-    // START SPLIT
-    for(auto comm : split)
-      commandlist.push_back(Command<T>(comm, command::start));
-    // WAIT FOR SPLIT
-    for(auto comm : split)
-      commandlist.push_back(Command<T>(comm, command::wait));
-    // START INTER-COMMUNICATION
-    for(auto comm : inter)
-      commandlist.push_back(Command<T>(comm, command::start));
-#ifdef OVERLAP
-    // START INTRA-COMMUNICATION
-    for(auto comm : intra)
-      commandlist.push_back(Command<T>(comm, command::start));
-#endif
-    // WAIT FOR INTER-COMMUNICATION
-    for(auto comm : inter)
-      commandlist.push_back(Command<T>(comm, command::wait));
-    // START MERGE
-    for(auto comm : merge)
-      commandlist.push_back(Command<T>(comm, command::start));
-#ifdef OVERLAP
-    // WAIT FOR INTRA-COMMUNICATION
-    for(auto comm : intra)
-      commandlist.push_back(Command<T>(comm, command::wait));
-#endif
-    // WAIT FOR MERGE
-    for(auto comm : merge)
-      commandlist.push_back(Command<T>(comm, command::wait));
-#ifndef OVERLAP
-    // START INTRA-COMMUNICATION
-    for(auto comm : intra)
-      commandlist.push_back(Command<T>(comm, command::start));
-    // WAIT FOR INTRA-COMMUNICATION
-    for(auto comm : intra)
-      commandlist.push_back(Command<T>(comm, command::wait));
-#endif
-  }*/
 
   template <typename T>
   class Comm {
@@ -658,28 +437,6 @@ namespace ExaComm {
         }
         printf("\n");
       }
-      // INIT POINT-TO-POINT
-      /*if(addlist.size())
-      {
-        // PARTITION INTO BATCHES
-        std::vector<std::vector<P2P<T>>> p2p_batch(numbatch);
-        for(auto &p2p : addlist) {
-          int batchsize = p2p.count / numbatch;
-          for(int batch = 0; batch < numbatch; batch++)
-            p2p_batch[batch].push_back(P2P<T>(p2p.sendbuf, p2p.sendoffset + batch * batchsize, p2p.recvbuf, p2p.recvoffset + batch * batchsize, batchsize, p2p.sendid, p2p.recvid));
-        }
-        // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
-        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
-        for(int batch = 0; batch < numbatch; batch++)
-          for(int c = 0; c < batch; c++)
-            comm_batch[batch].push_back(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
-	// ADD DUTY COMMUNICATORS INTO THE PIPELINE
-        for(int batch = 0; batch < numbatch; batch++) {
-          std::list<Command<T>> commandlist;
-          striped(comm_mpi, numlevel, groupsize, lib, p2p_batch[batch], comm_batch[batch], commandlist);
-        }
-        this->comm_batch = comm_batch;
-      }*/
       // INIT BROADCAST
       if(bcastlist.size())
       {
@@ -701,11 +458,16 @@ namespace ExaComm {
           striped(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], commandlist);
         }
         this->comm_batch = comm_batch;
+        std::vector<size_t> buffsize_all(numproc);
+        MPI_Allgather(&buffsize, sizeof(size_t), MPI_BYTE, buffsize_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
+        if(myid == ROOT)
+          for(int p = 0; p < numproc; p++)
+            printf("ExaComm Memory [%d]: %zu bytes\n", p, buffsize_all[p] * sizeof(size_t));
       }
     };
 
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      //addlist.push_back(P2P<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      // convert pt2pt to bcast primitive
       std::vector<int> recvids = {recvid};
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
     }

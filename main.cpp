@@ -170,9 +170,9 @@ int main(int argc, char *argv[])
           printf("invalid collective option\n");
     }
 
-    int numlevel = 2;
-    int groupsize[6] = {4, 4, 4, 2, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[6] = {4, 8, 4, 2, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     bench.init(numlevel, groupsize, library, numbatch);
@@ -183,9 +183,9 @@ int main(int argc, char *argv[])
     // bench.run_batch();
     // bench.overlap_batch();
 
-    bench.measure(warmup, numiter);
+    // bench.measure(warmup, numiter);
     // bench.report();
-
+    
     ExaComm::measure(count * numproc, warmup, numiter, bench);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, bench);
   }
