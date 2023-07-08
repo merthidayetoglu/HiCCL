@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 #include "../CommBench/verification/coll.h"
@@ -136,10 +136,16 @@ int main(int argc, char *argv[])
         for(int p = 0; p < numproc; p++)
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
+      case ExaComm::reduce :
+      {
+        std::vector<int> sendids;
+        for(int p = 0; p < numproc; p++)
+          sendids.push_back(p);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, sendids, ROOT);
+        break;
+      }
       case ExaComm::broadcast :
       {
-        /* for(int p = 0; p < numproc; p++)
-          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, p); */
         std::vector<int> recvids;
         for(int p = 0 ; p < numproc; p++)
           recvids.push_back(p);
@@ -170,9 +176,9 @@ int main(int argc, char *argv[])
           printf("invalid collective option\n");
     }
 
-    int numlevel = 3;
-    int groupsize[6] = {4, 8, 4, 2, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 5;
+    int groupsize[6] = {numproc, 16, 8, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     bench.init(numlevel, groupsize, library, numbatch);
@@ -183,7 +189,7 @@ int main(int argc, char *argv[])
     // bench.run_batch();
     // bench.overlap_batch();
 
-    // bench.measure(warmup, numiter);
+    bench.measure(warmup, numiter);
     // bench.report();
     
     ExaComm::measure(count * numproc, warmup, numiter, bench);
