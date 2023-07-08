@@ -456,6 +456,19 @@ namespace ExaComm {
 
     Comm(const MPI_Comm &comm_mpi) : comm_mpi(comm_mpi) {}
 
+    // ADD FUNCTIONS FOR BCAST AND REDUCE PRIMITIVES
+    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      std::vector<int> recvids = {recvid};
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
+    }
+    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) {
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
+    }
+    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid) {
+      reducelist.push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid));
+    }
+
+    // INITIALIZE BROADCAST AND REDUCTION TREES
     void init(int numlevel, int groupsize[], CommBench::library lib[], int numbatch) {
 
       int myid;
@@ -518,18 +531,6 @@ namespace ExaComm {
           reduce.report(ROOT);
       }
     };
-
-    // ADD FUNCTIONS FOR BCAST AND REDUCE PRIMITIVES
-    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      std::vector<int> recvids = {recvid};
-      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
-    }
-    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) {
-      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
-    }
-    void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid) {
-      reducelist.push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid));
-    }
 
     void overlap_batch() {
 

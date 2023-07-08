@@ -124,6 +124,10 @@ int main(int argc, char *argv[])
     ExaComm::printid = myid;
     ExaComm::Comm<Type> bench(MPI_COMM_WORLD);
 
+    std::vector<int> proclist;
+    for(int p = 0 ; p < numproc; p++)
+      proclist.push_back(p);
+
     switch (pattern) {
       case ExaComm::pt2pt :
         bench.add(sendbuf_d, 0, recvbuf_d, 0, count, 0, 4);
@@ -137,40 +141,28 @@ int main(int argc, char *argv[])
           bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
       case ExaComm::reduce :
-      {
-        std::vector<int> sendids;
-        for(int p = 0; p < numproc; p++)
-          sendids.push_back(p);
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, sendids, ROOT);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
         break;
-      }
       case ExaComm::broadcast :
-      {
-        std::vector<int> recvids;
-        for(int p = 0 ; p < numproc; p++)
-          recvids.push_back(p);
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, recvids);
+        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
         break;
-      }
       case ExaComm::alltoall :
-      {
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
             bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
-      }
-      case ExaComm::allgather :
-      {
-        for(int sender = 0; sender < numproc; sender++) {
-          //for(int recver = 0; recver < numproc; recver++)
-          //  bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recver);
-          std::vector<int> recvids;
-          for(int p = 0 ; p < numproc; p++)
-            recvids.push_back(p);
-          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, recvids);
-	}
+      case ExaComm::allreduce :
+        for(int recver = 0; recver < numproc; recver++)
+          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
         break;
-      }
+      case ExaComm::allgather :
+        for(int sender = 0; sender < numproc; sender++)
+          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
+        break;
+      case ExaComm::reducescatter :
+        for(int recver = 0; recver < numproc; recver++)
+          bench.add(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
+        break;
       default:
         if(myid == ROOT)
           printf("invalid collective option\n");
