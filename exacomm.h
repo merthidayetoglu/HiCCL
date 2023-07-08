@@ -501,34 +501,49 @@ namespace ExaComm {
       // INIT BROADCAST
       if(bcastlist.size())
       {
-        // PARTITION INTO BATCHES
+        // PARTITION BROADCAST INTO BATCHES
         std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
         for(auto &bcast : bcastlist) {
           int batchsize = bcast.count / numbatch;
           for(int batch = 0; batch < numbatch; batch++)
             bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvid));
         }
-        // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
+        // STRIPE BROADCAST
         std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
-        for(int batch = 0; batch < numbatch; batch++)
-          for(int c = 0; c < batch; c++)
-            comm_batch[batch].push_back(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
-	// ADD DUTY COMMUNICATOPNS INTO THE PIPELINE
 	for(int batch = 0; batch < numbatch; batch++) {
           std::list<Command<T>> commandlist;
           striped(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], commandlist);
         }
         this->comm_batch = comm_batch;
+      }
+      // INIT REDUCE
+      if(reducelist.size()) {
+        // PARTITION REDUCTION INTO BATCHES
+        std::vector<std::vector<REDUCE<T>>> reduce_batch(numbatch);
+        for(auto &reduce : reducelist) {
+          int batchsize = reduce.count / numbatch;
+          for(int batch = 0; batch < numbatch; batch++)
+            reduce_batch[batch].push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + batch * batchsize, reduce.recvbuf, reduce.recvoffset + batch * batchsize, batchsize, reduce.sendid, reduce.recvid));
+        }
+        // STRIPE REDUCE
+        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
+        for(int batch = 0; batch < numbatch; batch++) {
+          std::list<Command<T>> commandlist;
+          // striped(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], comm_batch[batch], commandlist);
+        }
+        this->comm_batch = comm_batch;
+      }
+      // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
+      if(bcastlist.size() | reducelist.size()) {
+        for(int batch = 0; batch < numbatch; batch++)
+          for(int c = 0; c < batch; c++)
+            comm_batch[batch].push_front(new CommBench::Comm<T>(comm_mpi, CommBench::MPI));
+        // REPORT MEMORY USAGE
         std::vector<size_t> buffsize_all(numproc);
         MPI_Allgather(&buffsize, sizeof(size_t), MPI_BYTE, buffsize_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
         if(myid == ROOT)
           for(int p = 0; p < numproc; p++)
             printf("ExaComm Memory [%d]: %zu bytes\n", p, buffsize_all[p] * sizeof(size_t));
-      }
-      if(reducelist.size()) {
-        printf("reducelist: %zu\n", reducelist.size());
-        for(auto &reduce : reducelist)
-          reduce.report(ROOT);
       }
     };
 
