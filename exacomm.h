@@ -85,7 +85,7 @@ namespace ExaComm {
 
     // PIPELINING
     std::vector<std::list<CommBench::Comm<T>*>> comm_batch;
-    std::vector<std::list<CommBench::Comm<T>*>> command_batch;
+    std::vector<std::list<Command<T>>> command_batch;
 
     public:
 
@@ -110,6 +110,9 @@ namespace ExaComm {
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
+
+      // ALLOCATE COMMAND BATCH
+      command_batch.reserve(numbatch);
 
       if(printid == ROOT) {
         printf("Initialize ExaComm with %d levels\n", numlevel);
@@ -145,10 +148,8 @@ namespace ExaComm {
         }
         std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
         // STRIPE BROADCAST
-	for(int batch = 0; batch < numbatch; batch++) {
-          std::list<Command<T>> commandlist;
-	  ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], commandlist);
-        }
+	for(int batch = 0; batch < numbatch; batch++)
+	  ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
         // CREATE PROADCAST TREE RECURSIVELY
         std::vector<int> groupsize_temp(numlevel);
         groupsize_temp[0] = numproc;
@@ -156,8 +157,7 @@ namespace ExaComm {
           groupsize_temp[level] = groupsize[level];
         for(int batch = 0; batch < numbatch; batch++) {
           std::list<Command<T>> waitlist;
-          std::list<Command<T>> commandlist;
-          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], comm_batch[batch], 1, commandlist, waitlist, 1);
+          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], comm_batch[batch], 1, command_batch[batch], waitlist, 1);
 	}
         this->comm_batch = comm_batch;
       }
