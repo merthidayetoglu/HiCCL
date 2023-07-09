@@ -106,6 +106,95 @@ namespace ExaComm {
     }
   }
 
+#if defined PORT_CUDA || defined PORT_HIP
+  template <typename T>
+  __global__ void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
+     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+     if(i < count) {
+       T output = 0;
+       for(int input = 0; input = numinput; input++)
+         output += inputbuf[input][i];
+       outputbuf[i] = output;
+     }
+  }
+#else
+  template <typename T>
+    void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
+    #pragma omp parallel for
+    for(size_t i = 0; i < count; i++) {
+      T output = 0;
+      for(int input = 0; input < numinput; input++)
+        output += inputbuf[input][i];
+      outputbuf[i] = output;
+    }
+  }
+#endif
+
+  template <typename T>
+  class Comp {
+
+    MPI_Comm comm_mpi;
+    int numcomp = 0;
+	
+    std::vector<std::vector<T*>> inputbuf;
+    std::vector<T*> outputbuf;
+    std::vector<size_t> count;
+#ifdef PORT_CUDA
+    std::vector<cudaStream_t*> stream;
+#elif defined PORT_HIP
+    std::vector<cudaStream_t*> stream;
+#endif
+
+    public:
+
+    Comp(const MPI_Comm &comm_mpi_temp) {
+      MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
+    }
+
+    void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
+      int myid;
+      int numproc;
+      MPI_Comm_rank(comm_mpi, &myid);
+      MPI_Comm_size(comm_mpi, &numproc);
+      if(myid == compid) {
+        this->inputbuf.push_back(inputbuf);
+        this->outputbuf.push_back(outputbuf);
+        this->count.push_back(count);
+#ifdef PORT_CUDA
+        stream.push_back(new cudaStream_t);
+        cudaStreamCreate(stream[numcomp]);
+#elif defined PORT_HIP
+        stream.push_back(new hipStream_t);
+        hipStreamCreate(stream[numcomp]);
+#endif
+        numcomp++;
+      }
+    }
+
+    void start() {
+      int blocksize = 256;
+      for(int comp = 0; comp < numcomp; comp++) {
+#if defined PORT_CUDA || PORT_HIP
+        int numblocks = (count[comp] + blocksize - 1) / blocksize;
+        reduce_kernel<<<blocksize, numblocks, 0, *stream[comp]>>> (outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
+#else
+        reduce_kernel(outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
+#endif
+      } 
+    }
+
+    void wait() {
+      for(int comp = 0; comp < numcomp; comp++)
+#ifdef PORT_CUDA
+        cudaStreamSynchronize(*stream[comp]);
+#elif defined PORT_HIP
+        hipStreamSynchronize(*stream[comp]);
+#endif
+    }
+
+    void run() { start(); wait(); }
+  };
+
   template <typename T>
   struct BCAST {
     public:
