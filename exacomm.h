@@ -18,6 +18,7 @@
 #include <vector>
 #include <list>
 #include <iterator>
+#include <numeric>
 
 namespace ExaComm {
 
@@ -25,174 +26,47 @@ namespace ExaComm {
   FILE *pFile;
   size_t buffsize = 0;
 
+#include "comp.h"
+
   enum command {start, wait, run};
-  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltoall, allreduce, allgather, reducescatter};
 
   template <typename T>
   struct Command {
-    public:
-    CommBench::Comm<T> *comm;
+
     command com;
-    Command(CommBench::Comm<T> *comm, command com) : comm(comm), com(com) {
-      if(printid == ROOT) {
-        switch(com) {
-          case(command::start) : printf("command::start added\n"); break;
-          case(command::wait) : printf("command::wait added\n"); break;
-          case(command::run) : printf("command::run added\n"); break;
-        }
-      }
-    }
-  };
-
-  /*template <typename T>
-  void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
-
-    using Iter = typename std::list<CommBench::Comm<T>*>::iterator;
-    std::vector<Iter> commptr(commlist.size());
-    for(int i = 0; i < commlist.size(); i++)
-      commptr[i] = commlist[i].begin();
-
-    for(int i = 0; i < commlist.size(); i++)
-      if(commptr[i] != commlist[i].end()) {
-        // fprintf(pFile, "start i %d init\n", i);
-        (*commptr[i])->start();
-      }
-
-    bool finished = false;
-    while(!finished) {
-      finished = true;
-      for(int i = 0; i < commlist.size(); i++) {
-        if(commptr[i] != commlist[i].end()) {
-          if(!(*commptr[i])->test()) {
-            // fprintf(pFile, "test %d\n", i);
-            finished = false;
-          }
-          else {
-            // fprintf(pFile, "wait %d\n", i);
-            (*commptr[i])->wait();
-            commptr[i]++;
-	    if(commptr[i] != commlist[i].end()) {
-              // fprintf(pFile, "start next %d\n", i);
-              (*commptr[i])->start();
-              finished = false;
-            }
-	    else {
-              ; //fprintf(pFile, "i %d is finished\n", i);
-	    }
-          }
-        }
-      }
-    }
-  }*/
-
-  template <typename T>
-  void run_commandlist(std::list<Command<T>> &commandlist) {
-    for(auto comm : commandlist) {
-      switch(comm.com) {
-        case(command::start) :
-          comm.comm->start();
-          break;
-        case(command::wait) :
-          comm.comm->wait();
-          break;
-      }
-    }
-  }
-
-  template <typename T>
-  void run_commlist(std::list<CommBench::Comm<T>*> &commlist) {
-    for(auto comm : commlist) {
-      comm->run();
-    }
-  }
-
-#if defined PORT_CUDA || defined PORT_HIP
-  template <typename T>
-  __global__ void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
-     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-     if(i < count) {
-       T output = 0;
-       for(int input = 0; input = numinput; input++)
-         output += inputbuf[input][i];
-       outputbuf[i] = output;
-     }
-  }
-#else
-  template <typename T>
-    void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
-    #pragma omp parallel for
-    for(size_t i = 0; i < count; i++) {
-      T output = 0;
-      for(int input = 0; input < numinput; input++)
-        output += inputbuf[input][i];
-      outputbuf[i] = output;
-    }
-  }
-#endif
-
-  template <typename T>
-  class Comp {
-
-    MPI_Comm comm_mpi;
-    int numcomp = 0;
-	
-    std::vector<std::vector<T*>> inputbuf;
-    std::vector<T*> outputbuf;
-    std::vector<size_t> count;
-#ifdef PORT_CUDA
-    std::vector<cudaStream_t*> stream;
-#elif defined PORT_HIP
-    std::vector<cudaStream_t*> stream;
-#endif
 
     public:
-
-    Comp(const MPI_Comm &comm_mpi_temp) {
-      MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
-    }
-
-    void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-      if(myid == compid) {
-        this->inputbuf.push_back(inputbuf);
-        this->outputbuf.push_back(outputbuf);
-        this->count.push_back(count);
-#ifdef PORT_CUDA
-        stream.push_back(new cudaStream_t);
-        cudaStreamCreate(stream[numcomp]);
-#elif defined PORT_HIP
-        stream.push_back(new hipStream_t);
-        hipStreamCreate(stream[numcomp]);
-#endif
-        numcomp++;
-      }
-    }
+    CommBench::Comm<T> *comm = nullptr;
+    ExaComm::Comp<T> *comp = nullptr;
+    Command(CommBench::Comm<T> *comm, command com) : comm(comm), com(com) {}
+    Command(ExaComm::Comp<T> *comp, command com) : comp(comp), com(com) {}
 
     void start() {
-      int blocksize = 256;
-      for(int comp = 0; comp < numcomp; comp++) {
-#if defined PORT_CUDA || PORT_HIP
-        int numblocks = (count[comp] + blocksize - 1) / blocksize;
-        reduce_kernel<<<blocksize, numblocks, 0, *stream[comp]>>> (outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
-#else
-        reduce_kernel(outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
-#endif
-      } 
+      if(comm) comm->start;
+      if(comp) comp->start;
     }
-
     void wait() {
-      for(int comp = 0; comp < numcomp; comp++)
-#ifdef PORT_CUDA
-        cudaStreamSynchronize(*stream[comp]);
-#elif defined PORT_HIP
-        hipStreamSynchronize(*stream[comp]);
-#endif
+      if(comm) comm->wait;
+      if(comp) comp->wait;
     }
-
     void run() { start(); wait(); }
+    void report() {
+      if(comm) {
+        if(printid == ROOT)
+          printf("COMMAND TYPE: COMMUNICATION\n");
+        comm->report;
+      }
+      if(comp) {
+        if(printid == ROOT)
+          printf("COMMAND TYPE: COMPUTATION\n");
+        comp->report;
+      }
+    }
+    void measure() {
+      report();
+      if(comm) comm->measure();
+      if(comp) comp->measure();
+    }
   };
 
 #include "bcast.h"
@@ -208,10 +82,10 @@ namespace ExaComm {
 
     std::list<CommBench::Comm<T>*> commlist;
     std::list<Command<T>> commandlist;
-    std::list<T*> bufferlist;
 
     // PIPELINING
     std::vector<std::list<CommBench::Comm<T>*>> comm_batch;
+    std::vector<std::list<CommBench::Comm<T>*>> command_batch;
 
     public:
 
@@ -267,14 +141,24 @@ namespace ExaComm {
         for(auto &bcast : bcastlist) {
           int batchsize = bcast.count / numbatch;
           for(int batch = 0; batch < numbatch; batch++)
-            bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvid));
+            bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvids));
         }
-        // STRIPE BROADCAST
         std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
+        // STRIPE BROADCAST
 	for(int batch = 0; batch < numbatch; batch++) {
           std::list<Command<T>> commandlist;
-          striped(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], commandlist);
+	  ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], commandlist);
         }
+        // CREATE PROADCAST TREE RECURSIVELY
+        std::vector<int> groupsize_temp(numlevel);
+        groupsize_temp[0] = numproc;
+        for(int level = 1; level  < numlevel; level++)
+          groupsize_temp[level] = groupsize[level];
+        for(int batch = 0; batch < numbatch; batch++) {
+          std::list<Command<T>> waitlist;
+          std::list<Command<T>> commandlist;
+          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], comm_batch[batch], 1, commandlist, waitlist, 1);
+	}
         this->comm_batch = comm_batch;
       }
       // INIT REDUCE
@@ -358,7 +242,6 @@ namespace ExaComm {
       if(printid == ROOT) {
         printf("commlist size %zu\n", commlist.size());
         printf("commandlist size %zu\n", commandlist.size());
-        printf("bufferlist size %zu\n", bufferlist.size());
       }
       for(auto &list : comm_batch)
         for(auto comm : list)
@@ -388,13 +271,71 @@ namespace ExaComm {
       if(printid == ROOT) {
         printf("commandlist size %zu\n", commandlist.size());
         printf("commlist size %zu\n", commlist.size());
-        printf("bufferlist size %zu\n", bufferlist.size());
       }
     }
   };
 
-#include <unistd.h>
-
 #include "bench.h"
 
+  /*template <typename T>
+  void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
+
+    using Iter = typename std::list<CommBench::Comm<T>*>::iterator;
+    std::vector<Iter> commptr(commlist.size());
+    for(int i = 0; i < commlist.size(); i++)
+      commptr[i] = commlist[i].begin();
+
+    for(int i = 0; i < commlist.size(); i++)
+      if(commptr[i] != commlist[i].end()) {
+        // fprintf(pFile, "start i %d init\n", i);
+        (*commptr[i])->start();
+      }
+
+    bool finished = false;
+    while(!finished) {
+      finished = true;
+      for(int i = 0; i < commlist.size(); i++) {
+        if(commptr[i] != commlist[i].end()) {
+          if(!(*commptr[i])->test()) {
+            // fprintf(pFile, "test %d\n", i);
+            finished = false;
+          }
+          else {
+            // fprintf(pFile, "wait %d\n", i);
+            (*commptr[i])->wait();
+            commptr[i]++;
+            if(commptr[i] != commlist[i].end()) {
+              // fprintf(pFile, "start next %d\n", i);
+              (*commptr[i])->start();
+              finished = false;
+            }
+            else {
+              ; //fprintf(pFile, "i %d is finished\n", i);
+            }
+          }
+        }
+      }
+    }
+  }*/
+
+/*  template <typename T>
+  void run_commandlist(std::list<Command<T>> &commandlist) {
+    for(auto comm : commandlist) {
+      switch(comm.com) {
+        case(command::start) :
+          comm.comm->start();
+          break;
+        case(command::wait) :
+          comm.comm->wait();
+          break;
+      }
+    }
+  }
+
+  template <typename T>
+  void run_commlist(std::list<CommBench::Comm<T>*> &commlist) {
+    for(auto comm : commlist) {
+      comm->run();
+    }
+  }*/
 }
