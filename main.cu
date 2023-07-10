@@ -74,6 +74,8 @@ int main(int argc, char *argv[])
   int warmup = atoi(argv[4]);
   int numiter = atoi(argv[5]);
 
+  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltoall, allreduce, allgather, reducescatter};
+
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
   {
@@ -85,13 +87,13 @@ int main(int argc, char *argv[])
 
     printf("Pattern: ");
     switch(pattern) {
-      case ExaComm::gather : printf("Gather\n"); break;
-      case ExaComm::scatter: printf("Scatter\n"); break;
-      case ExaComm::reduce: printf("Reduce\n"); break;
-      case ExaComm::broadcast : printf("Broadcast\n"); break;
-      case ExaComm::alltoall : printf("All-to-All\n"); break;
-      case ExaComm::allgather : printf("All-Gather\n"); break;
-      case ExaComm::allreduce : printf("All-Reduce\n"); break;
+      case gather : printf("Gather\n"); break;
+      case scatter: printf("Scatter\n"); break;
+      case reduce: printf("Reduce\n"); break;
+      case broadcast : printf("Broadcast\n"); break;
+      case alltoall : printf("All-to-All\n"); break;
+      case allgather : printf("All-Gather\n"); break;
+      case allreduce : printf("All-Reduce\n"); break;
     }
     printf("Number of batches: %d\n", numbatch);
 
@@ -121,71 +123,66 @@ int main(int argc, char *argv[])
 #endif
 
   {
+
     ExaComm::printid = myid;
-    ExaComm::Comm<Type> bench(MPI_COMM_WORLD);
+    ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
 
     std::vector<int> proclist;
     for(int p = 0 ; p < numproc; p++)
       proclist.push_back(p);
 
     switch (pattern) {
-      case ExaComm::pt2pt :
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, 0, 4);
-        break;
-      case ExaComm::gather :
+      case gather :
         for(int p = 0; p < numproc; p++)
-          bench.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
+          coll.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
-      case ExaComm::scatter :
+      case scatter :
         for(int p = 0; p < numproc; p++)
-          bench.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
+          coll.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
-      case ExaComm::reduce :
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+      case reduce :
+        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
         break;
-      case ExaComm::broadcast :
-        bench.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+      case broadcast :
+        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
         break;
-      case ExaComm::alltoall :
+      case alltoall :
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
-            bench.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
+            coll.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
-      case ExaComm::allreduce :
+      case allreduce :
         for(int recver = 0; recver < numproc; recver++)
-          bench.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+          coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
         break;
-      case ExaComm::allgather :
+      case allgather :
         for(int sender = 0; sender < numproc; sender++)
-          bench.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
+          coll.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
         break;
-      case ExaComm::reducescatter :
+      case reducescatter :
         for(int recver = 0; recver < numproc; recver++)
-          bench.add(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
+          coll.add(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       default:
         if(myid == ROOT)
           printf("invalid collective option\n");
     }
 
-    int numlevel = 5;
-    int groupsize[6] = {numproc, 16, 8, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 2;
+    int groupsize[6] = {4, 4, 8, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
-    bench.init(numlevel, groupsize, library, numbatch);
+    coll.init(numlevel, groupsize, library, numbatch);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    // bench.run_batch();
-    // bench.overlap_batch();
-
-    bench.measure(warmup, numiter);
-    // bench.report();
+    //coll.measure(warmup, numiter);
+    //coll.report();
     
-    ExaComm::measure(count * numproc, warmup, numiter, bench);
-    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, bench);
+    ExaComm::measure(count * numproc, warmup, numiter, coll);
+    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
   }
 
 // DEALLOCATE

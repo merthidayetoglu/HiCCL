@@ -1,5 +1,5 @@
 template <typename T>
-void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
+void measure(size_t count, int warmup, int numiter, ExaComm::Comm<T> &comm) {
 
   int myid;
   int numproc;
@@ -23,10 +23,9 @@ void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
 #endif
     MPI_Barrier(MPI_COMM_WORLD);
     double time = MPI_Wtime();
-    // comm.run_commandlist();
-    // comm.run_batch();
-    comm.overlap_batch();
-    // comm.run_concurrent();
+
+    comm.run();
+
     time = MPI_Wtime() - time;
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
@@ -80,7 +79,7 @@ void measure(size_t count, int warmup, int numiter, Comm<T> &comm) {
 }
 
 template <typename T>
-void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T> &comm) {
+void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm::Comm<T> &comm) {
 
   int myid;
   int numproc;
@@ -115,10 +114,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T>
 #endif
   memset(recvbuf, -1, count * numproc * sizeof(int));
 
-  //comm.run_commandlist();
-  //comm.run_commbatch();
-  // comm.run_batch();
-  comm.overlap_batch();
+  comm.run();
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);
@@ -128,74 +124,55 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, Comm<T>
   hipStreamSynchronize(stream);
 #endif
 
-  bool pass = true;
+  bool pass = false;
   switch(pattern) {
-    case 0:
-      {
-        if(myid == 0) printf("VERIFY P2P\n");
-        if(myid == 15) {
-          for(size_t i = 0; i < count; i++) {
-            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-            if(recvbuf[i] != i)
-              pass = false;
-          }
-        }
-      }
-      break;
     case 1:
-      {
-        if(myid == ROOT) printf("VERIFY GATHER\n");
-        if(myid == ROOT) {
-          for(int p = 0; p < numproc; p++)
-            for(size_t i = 0; i < count; i++) {
-              // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-              if(recvbuf[p * count + i] != i)
-                pass = false;
-            }
-        }
-      }
-      break;
-    case 2:
-      {
-        if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d\n", ROOT);
+      if(myid == ROOT) printf("VERIFY GATHER ROOT = %d\n", ROOT);
+      pass = true;
+      for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[i] != myid * count + i)
+          if(recvbuf[p * count + i] != i)
             pass = false;
         }
+      break;
+    case 2:
+      if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d\n", ROOT);
+      pass = true;
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != myid * count + i)
+          pass = false;
       }
       break;
     case 4:
-      {
-        if(myid == ROOT) printf("VERIFY BCAST ROOT = %d\n", ROOT);
-        for(size_t i = 0; i < count; i++) {
-          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[i] != i)
-            pass = false;
-        }
+      if(myid == ROOT) printf("VERIFY BCAST ROOT = %d\n", ROOT);
+      pass = true;
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != i)
+          pass = false;
       }
       break;
     case 5:
-      {
-        if(myid == ROOT) printf("VERIFY ALL-TO-ALL\n");
-        for(int p = 0; p < numproc; p++)
-          for(size_t i = 0; i < count; i++) {
-            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-            if(recvbuf[p * count + i] != myid * count + i)
-              pass = false;
-          }
-      }
+      if(myid == ROOT) printf("VERIFY ALL-TO-ALL\n");
+      pass = true;
+      for(int p = 0; p < numproc; p++)
+        for(size_t i = 0; i < count; i++) {
+          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          if(recvbuf[p * count + i] != myid * count + i)
+            pass = false;
+        }
       break;
     case 7:
-      {
-        if(myid == ROOT) printf("VERIFY ALL-GATHER\n");
-        for(int p = 0; p < numproc; p++)
-          for(size_t i = 0; i < count; i++) {
-            // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-            if(recvbuf[p * count + i] != i)
-              pass = false;
-          }
-      }
+      if(myid == ROOT) printf("VERIFY ALL-GATHER\n");
+      pass = true;
+      for(int p = 0; p < numproc; p++)
+        for(size_t i = 0; i < count; i++) {
+          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          if(recvbuf[p * count + i] != i)
+            pass = false;
+        }
       break;
   }
 

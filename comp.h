@@ -24,7 +24,7 @@
 #endif
 
   template <typename T>
-  class Comp {
+  class Compute {
 
     MPI_Comm comm_mpi;
     int numcomp = 0;
@@ -40,7 +40,7 @@
 
     public:
 
-    Comp(const MPI_Comm &comm_mpi_temp) {
+    Compute(const MPI_Comm &comm_mpi_temp) {
       MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
     }
 
@@ -88,7 +88,7 @@
 
     void report() {
       if(printid == ROOT) {
-        printf("numcomp %d\n");
+        printf("numcomp %d\n", numcomp);
         for(int comp = 0; comp < numcomp; comp++)
           printf("comp %d count %zu\n", comp, count[comp]);
       }
