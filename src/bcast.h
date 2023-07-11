@@ -283,3 +283,43 @@ template <typename T>
       commlist.insert( commlist.end(), split.begin(), split.end() );
     }
   }
+
+  template <typename T>
+  void stripe(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_intra, CommBench::library lib_inter, std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
+
+  }
+
+
+  template <typename T>
+  void scatter(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_intra, CommBench::library lib_inter, std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
+
+    int myid;
+    int numproc;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
+
+    std::vector<BCAST<T>> stripelist;
+    std::vector<BCAST<T>> bcastlist_new;
+    for(auto &bcast : bcastlist) {
+      // STRIPE INTO NUMBER OF THE RECVIEVING PROCS
+      int stripesize = bcast.count / bcast.recvids.size();
+      for(int stripe = 0; stripe < bcast.recvids.size(); stripe++) {
+        std::vector<int> recvid(bcast.recvids[stripe]);
+        stripelist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + stripe * stripesize, bcast.recvbuf, bcast.recvoffset + stripe * stripesize, stripesize, bcast.sendid, recvid));
+        // UPDATE THE BCAST PRIMITIVE FOR ALL-GATHER
+        std::vector<int> recvids;
+        for(auto &recvid : bcast.recvids)
+          if(recvid != bcast.recvids[stripe])
+            recvids.push_back(recvid);
+        bcastlist_new.push_back(BCAST<T>(bcast.recvbuf, bcast.recvoffset + stripe * stripesize, bcast.recvbuf, bcast.recvoffset + stripe * stripesize, stripesize, bcast.recvids[stripe], recvids));
+      }
+    }
+    // STRIPE SCATTER
+    stripe(comm_mpi, nodesize, lib_intra, lib_inter, stripelist, commandlist);
+    // CLEAR AND UPDATE WITH NEW BCAST LIST
+    bcastlist.clear();
+    for(auto bcast : bcastlist_new)
+      bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
+  }
+
+

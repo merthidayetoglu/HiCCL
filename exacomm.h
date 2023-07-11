@@ -26,7 +26,7 @@ namespace ExaComm {
   FILE *pFile;
   size_t buffsize = 0;
 
-#include "comp.h"
+#include "src/comp.h"
 
   enum command {start, wait, run};
 
@@ -73,8 +73,9 @@ namespace ExaComm {
     }
   };
 
-#include "bcast.h"
-#include "reduce.h"
+#define FUSING
+#include "src/bcast.h"
+#include "src/reduce.h"
 
   template <typename T>
   class Comm {
@@ -137,6 +138,10 @@ namespace ExaComm {
         }
         printf("\n");
       }
+      // INIT PT2PT
+        // STRIPE BROADCAST
+	//for(int batch = 0; batch < numbatch; batch++)
+	  // ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
       // INIT BROADCAST
       if(bcastlist.size())
       {
@@ -149,22 +154,20 @@ namespace ExaComm {
         }
         std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
         std::vector<std::list<ExaComm::Command<T>>> command_batch(numbatch);
-        // STRIPE BROADCAST
-	for(int batch = 0; batch < numbatch; batch++)
-	  ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
+	// SCATTER BROADCAST
+	if(groupsize[0] < numproc)
+	  for(int batch = 0; batch < numbatch; batch++)
+	    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
         // CREATE PROADCAST TREE RECURSIVELY
-        std::vector<int> groupsize_temp(numlevel);
+        std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
         groupsize_temp[0] = numproc;
-        for(int level = 1; level  < numlevel; level++)
-          groupsize_temp[level] = groupsize[level];
         for(int batch = 0; batch < numbatch; batch++) {
           std::list<Command<T>> commandlist; 
           std::list<Command<T>> waitlist;
           ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], comm_batch[batch], 1, commandlist, waitlist, 1);
 	}
 	for(int batch = 0; batch < numbatch; batch++)
-          for(auto comm : comm_batch[batch])
-            this->command_batch[batch].push_back(Command<T>(comm, command::run));
+          this->command_batch.insert(this->command_batch.end(), command_batch.begin(), command_batch.end());
         // this->comm_batch = comm_batch;
       }
       // INIT REDUCE
@@ -251,7 +254,7 @@ namespace ExaComm {
     }
   };
 
-#include "bench.h"
+#include "src/bench.h"
 
   /*template <typename T>
   void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
