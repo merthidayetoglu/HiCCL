@@ -157,8 +157,11 @@ namespace ExaComm {
 	// SCATTER BROADCAST
 	if(groupsize[0] < numproc)
 	  for(int batch = 0; batch < numbatch; batch++)
-	    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
-        // CREATE PROADCAST TREE RECURSIVELY
+	    ExaComm::scatter(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+        // STRIPE BROADCAST
+	//for(int batch = 0; batch < numbatch; batch++)
+	//   ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
+        // CREATE HIERARCHICAL BROADCAST TREE (ALL-GATHER)
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
         groupsize_temp[0] = numproc;
         for(int batch = 0; batch < numbatch; batch++) {
