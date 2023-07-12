@@ -158,12 +158,15 @@ namespace ExaComm {
           }
         }
 	// SCATTER
-	//if(groupsize[0] < numproc)
-	//  for(int batch = 0; batch < numbatch; batch++)
-	//    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	if(groupsize[0] < numproc)
+	  for(int batch = 0; batch < numbatch; batch++)
+	    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
         // STRIPE BROADCAST
-	for(int batch = 0; batch < numbatch; batch++)
+	/*for(int batch = 0; batch < numbatch; batch++) {
+          for(auto &bcast : bcast_batch[batch])
+            bcast.report(ROOT);
 	  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	}*/
 
         // ALLGATHER
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);

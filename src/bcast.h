@@ -13,7 +13,7 @@ template <typename T>
     BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids)
     : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) {}
     BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) { recvids.push_back(recvid); }
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) { recvids.push_back(recvid); }
 
     void report(int id) {
       if(printid == sendid) {
@@ -266,20 +266,18 @@ template <typename T>
       printf("lib_inter %d\n", lib_inter);
       printf("lib_intra %d\n", lib_intra);
     }
+
     // STRIPE SCATTER & UPDATE STRIPELIST
-    stripe(comm_mpi, nodesize, lib_intra, scatterlist, commandlist);
+    stripe(comm_mpi, nodesize, lib_intra, bcastlist, commandlist);
+
     // BUILD TWO-LEVEL BROADCAST TREE
     {
       std::vector<int> groupsize = {numproc, nodesize};
       std::vector<CommBench::library> lib = {lib_inter, lib_intra};
       bcast_tree(comm_mpi, groupsize.size(), groupsize.data(), lib.data(), scatterlist, 1, commandlist);
     }
-    for(auto &command : commandlist)
-      command.measure(5, 10);
     // CLEAR AND UPDATE WITH NEW BCAST LIST
     bcastlist.clear();
-    for(auto &bcast : bcastlist_new) {
+    for(auto &bcast : bcastlist_new)
       bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
-      bcast.report(ROOT);
-    }
   }
