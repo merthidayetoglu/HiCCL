@@ -168,9 +168,9 @@ int main(int argc, char *argv[])
           printf("invalid collective option\n");
     }
 
-    int numlevel = 2;
-    int groupsize[6] = {4, 4, 8, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[6] = {4, 8, 4, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    //coll.measure(warmup, numiter);
+    coll.measure(warmup, numiter);
     //coll.report();
     
     ExaComm::measure(count * numproc, warmup, numiter, coll);

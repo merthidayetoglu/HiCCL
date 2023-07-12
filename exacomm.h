@@ -28,20 +28,20 @@ namespace ExaComm {
 
 #include "src/comp.h"
 
-  enum command {start, wait, run};
-
   template <typename T>
   class Command {
-
-    command com;
 
     CommBench::Comm<T> *comm = nullptr;
     ExaComm::Compute<T> *compute = nullptr;
 
     public:
 
-    Command(CommBench::Comm<T> *comm, command com) : comm(comm), com(com) {}
-    Command(ExaComm::Compute<T> *compute, command com) : compute(compute), com(com) {}
+    Command(CommBench::Comm<T> *comm) : comm(comm) {}
+    Command(ExaComm::Compute<T> *compute) : compute(compute) {}
+    /*Command(Command &t) {
+      comm = t.comm;
+      compute = t.compute;
+    }*/
 
     void start() {
       if(comm) comm->start();
@@ -66,10 +66,17 @@ namespace ExaComm {
         compute->report();
       }
     }
-    void measure() {
-      report();
-      if(comm) comm->measure();
-      if(compute) compute->measure();
+    void measure(int warmup, int numiter) {
+      if(comm) {
+        if(printid == ROOT)
+          printf("COMMAND TYPE: COMMUNICATION\n");
+	comm->measure(warmup, numiter);
+      }
+      if(compute) {
+        if(printid == ROOT)
+          printf("COMMAND TYPE: COMPUTATION\n");
+	compute->measure(warmup, numiter);
+      }
     }
   };
 
@@ -138,63 +145,37 @@ namespace ExaComm {
         }
         printf("\n");
       }
-      // INIT PT2PT
-        // STRIPE BROADCAST
-	//for(int batch = 0; batch < numbatch; batch++)
-	  // ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
       // INIT BROADCAST
       if(bcastlist.size())
       {
         // PARTITION BROADCAST INTO BATCHES
         std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
-        for(auto &bcast : bcastlist) {
-          int batchsize = bcast.count / numbatch;
-          for(int batch = 0; batch < numbatch; batch++)
-            bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvids));
+        {
+          for(auto &bcast : bcastlist) {
+            int batchsize = bcast.count / numbatch;
+            for(int batch = 0; batch < numbatch; batch++)
+              bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvids));
+          }
         }
-        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
-        std::vector<std::list<ExaComm::Command<T>>> command_batch(numbatch);
-	// SCATTER BROADCAST
-	if(groupsize[0] < numproc)
-	  for(int batch = 0; batch < numbatch; batch++)
-	    ExaComm::scatter(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	// SCATTER
+	//if(groupsize[0] < numproc)
+	//  for(int batch = 0; batch < numbatch; batch++)
+	//    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
         // STRIPE BROADCAST
-	//for(int batch = 0; batch < numbatch; batch++)
-	//   ExaComm::stripe(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], comm_batch[batch], command_batch[batch]);
-        // CREATE HIERARCHICAL BROADCAST TREE (ALL-GATHER)
+	for(int batch = 0; batch < numbatch; batch++)
+	  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+
+        // ALLGATHER
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
         groupsize_temp[0] = numproc;
-        for(int batch = 0; batch < numbatch; batch++) {
-          std::list<Command<T>> commandlist; 
-          std::list<Command<T>> waitlist;
-          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], comm_batch[batch], 1, commandlist, waitlist, 1);
-	}
-	for(int batch = 0; batch < numbatch; batch++)
-          this->command_batch.insert(this->command_batch.end(), command_batch.begin(), command_batch.end());
-        // this->comm_batch = comm_batch;
+        for(int batch = 0; batch < numbatch; batch++)
+          ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], 1, command_batch[batch]);
       }
-      // INIT REDUCE
-      /*if(reducelist.size()) {
-        // PARTITION REDUCTION INTO BATCHES
-        std::vector<std::vector<REDUCE<T>>> reduce_batch(numbatch);
-        for(auto &reduce : reducelist) {
-          int batchsize = reduce.count / numbatch;
-          for(int batch = 0; batch < numbatch; batch++)
-            reduce_batch[batch].push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + batch * batchsize, reduce.recvbuf, reduce.recvoffset + batch * batchsize, batchsize, reduce.sendid, reduce.recvid));
-        }
-        // STRIPE REDUCE
-        std::vector<std::list<CommBench::Comm<T>*>> comm_batch(numbatch);
-        for(int batch = 0; batch < numbatch; batch++) {
-          std::list<Command<T>> commandlist;
-          // striped(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], comm_batch[batch], commandlist);
-        }
-        this->comm_batch = comm_batch;
-      }*/
       // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
       if(bcastlist.size() | reducelist.size()) {
         for(int batch = 0; batch < numbatch; batch++)
           for(int c = 0; c < batch; c++)
-            command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI), command::run));
+            command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI)));
       }
 
       // REPORT
@@ -237,8 +218,8 @@ namespace ExaComm {
     }
 
     void measure(int warmup, int numiter) {
-      for(auto command : command_batch[0])
-        command->measure(warmup, numiter);
+      for(auto &command : command_batch[0])
+        command.measure(warmup, numiter);
     }
 
     void report() {
