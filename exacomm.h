@@ -101,8 +101,7 @@ namespace ExaComm {
 
     // ADD FUNCTIONS FOR BCAST AND REDUCE PRIMITIVES
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      std::vector<int> recvids = {recvid};
-      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
+      bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) {
       bcastlist.push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
@@ -157,16 +156,14 @@ namespace ExaComm {
               bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvids));
           }
         }
-	// SCATTER
-	if(groupsize[0] < numproc)
+	if(groupsize[0] < numproc) {
+	  // SCATTER
 	  for(int batch = 0; batch < numbatch; batch++)
 	    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
-        // STRIPE BROADCAST
-	/*for(int batch = 0; batch < numbatch; batch++) {
-          for(auto &bcast : bcast_batch[batch])
-            bcast.report(ROOT);
-	  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
-	}*/
+          // STRIPE BROADCAST
+          //for(int batch = 0; batch < numbatch; batch++)
+	  //  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+        }
 
         // ALLGATHER
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);

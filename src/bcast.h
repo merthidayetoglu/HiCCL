@@ -268,7 +268,7 @@ template <typename T>
     }
 
     // STRIPE SCATTER & UPDATE STRIPELIST
-    stripe(comm_mpi, nodesize, lib_intra, bcastlist, commandlist);
+    stripe(comm_mpi, nodesize, lib_intra, scatterlist, commandlist);
 
     // BUILD TWO-LEVEL BROADCAST TREE
     {
