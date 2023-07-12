@@ -261,20 +261,18 @@ template <typename T>
     }
     if(printid == ROOT) {
       printf("bcastlist size %zu\n", bcastlist.size());
-      printf("stripelist size %zu\n", stripelist.size());
+      printf("scatterlist size %zu\n", scatterlist.size());
       printf("new bcastlist size %zu\n", bcastlist_new.size());
       printf("lib_inter %d\n", lib_inter);
       printf("lib_intra %d\n", lib_intra);
     }
-    for(auto &bcast : stripelist)
-      bcast.report(ROOT);
     // STRIPE SCATTER & UPDATE STRIPELIST
-    stripe(comm_mpi, nodesize, lib_intra, stripelist, commandlist);
+    stripe(comm_mpi, nodesize, lib_intra, scatterlist, commandlist);
     // BUILD TWO-LEVEL BROADCAST TREE
     {
       std::vector<int> groupsize = {numproc, nodesize};
       std::vector<CommBench::library> lib = {lib_inter, lib_intra};
-      bcast_tree(comm_mpi, groupsize.size(), groupsize.data(), lib.data(), stripelist, 1, commandlist);
+      bcast_tree(comm_mpi, groupsize.size(), groupsize.data(), lib.data(), scatterlist, 1, commandlist);
     }
     for(auto &command : commandlist)
       command.measure(5, 10);
