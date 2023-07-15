@@ -5,7 +5,7 @@
      size_t i = blockIdx.x * blockDim.x + threadIdx.x;
      if(i < count) {
        T output = 0;
-       for(int input = 0; input = numinput; input++)
+       for(int input = 0; input < numinput; input++)
          output += inputbuf[input][i];
        outputbuf[i] = output;
      }
@@ -35,7 +35,7 @@
 #ifdef PORT_CUDA
     std::vector<cudaStream_t*> stream;
 #elif defined PORT_HIP
-    std::vector<cudaStream_t*> stream;
+    std::vector<hipStream_t*> stream;
 #endif
 
     public:
@@ -67,7 +67,7 @@
     void start() {
       int blocksize = 256;
       for(int comp = 0; comp < numcomp; comp++) {
-#if defined PORT_CUDA || PORT_HIP
+#if defined PORT_CUDA || defined PORT_HIP
         int numblocks = (count[comp] + blocksize - 1) / blocksize;
         reduce_kernel<<<blocksize, numblocks, 0, *stream[comp]>>> (outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
 #else

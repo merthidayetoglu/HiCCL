@@ -164,7 +164,6 @@ namespace ExaComm {
           //for(int batch = 0; batch < numbatch; batch++)
 	  //  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
         }
-
         // ALLGATHER
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
         groupsize_temp[0] = numproc;
@@ -218,11 +217,22 @@ namespace ExaComm {
     }
 
     void measure(int warmup, int numiter) {
-      for(auto &command : command_batch[0])
-        command.measure(warmup, numiter);
+      if(printid == ROOT) {
+        printf("command_batch size %zu\n", command_batch.size());
+        printf("commandlist size %zu\n", command_batch[0].size());
+      }
+      auto it = command_batch[0].begin();
+      for(int command = 0; command < command_batch[0].size(); command++) {
+        it->measure(warmup, numiter);
+        it++;
+      }
     }
 
     void report() {
+      if(printid == ROOT) {
+        printf("command_batch size %zu\n", command_batch.size());
+        printf("commandlist size %zu\n", command_batch[0].size());
+      }
       int counter = 0;
       for(auto it = command_batch[0].begin(); it != command_batch[0].end(); it++) {
         if(printid == ROOT) {
@@ -230,10 +240,6 @@ namespace ExaComm {
         }
         it->report();
         counter++;
-      }
-      if(printid == ROOT) {
-        printf("command_batch size %zu\n", command_batch.size());
-        printf("commandlist size %zu\n", command_batch[0].size());
       }
     }
   };

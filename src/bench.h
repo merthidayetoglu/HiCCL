@@ -86,77 +86,70 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
 
-  int *recvbuf;
-  int *sendbuf;
+  T *recvbuf;
+  T *sendbuf;
 #ifdef PORT_CUDA
-  cudaMallocHost(&sendbuf, count * numproc * sizeof(int));
-  cudaMallocHost(&recvbuf, count * numproc * sizeof(int));
+  cudaMallocHost(&sendbuf, count * numproc * sizeof(T));
+  cudaMallocHost(&recvbuf, count * numproc * sizeof(T));
 #elif defined PORT_HIP
-  hipHostMalloc(&sendbuf, count * numproc * sizeof(int));
-  hipHostMalloc(&recvbuf, count * numproc * sizeof(int));
+  hipHostMalloc(&sendbuf, count * numproc * sizeof(T));
+  hipHostMalloc(&recvbuf, count * numproc * sizeof(T));
 #endif
 
   for(int p = 0; p < numproc; p++)
     for(size_t i = p * count; i < (p + 1) * count; i++)
       sendbuf[i] = i;
 #ifdef PORT_CUDA
-  cudaMemcpy(sendbuf_d, sendbuf, count * sizeof(int) * numproc, cudaMemcpyHostToDevice);
-  cudaMemset(recvbuf_d, -1, count * numproc * sizeof(int));
+  cudaMemcpy(sendbuf_d, sendbuf, count * sizeof(T) * numproc, cudaMemcpyHostToDevice);
+  cudaMemset(recvbuf_d, -1, count * numproc * sizeof(T));
   cudaStream_t stream;
   cudaStreamCreate(&stream);
   cudaDeviceSynchronize();
 #elif defined PORT_HIP
-  hipMemcpy(sendbuf_d, sendbuf, count * sizeof(int) * numproc, hipMemcpyHostToDevice);
-  hipMemset(recvbuf_d, -1, count * numproc * sizeof(int));
+  hipMemcpy(sendbuf_d, sendbuf, count * sizeof(T) * numproc, hipMemcpyHostToDevice);
+  hipMemset(recvbuf_d, -1, count * numproc * sizeof(T));
   hipStream_t stream;
   hipStreamCreate(&stream);
   hipDeviceSynchronize();
 #endif
-  memset(recvbuf, -1, count * numproc * sizeof(int));
+  memset(recvbuf, -1, count * numproc * sizeof(T));
 
   comm.run();
 
 #ifdef PORT_CUDA
-  cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, cudaMemcpyDeviceToHost, stream);
+  cudaMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(T) * numproc, cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 #elif defined PORT_HIP
-  hipMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(int) * numproc, hipMemcpyDeviceToHost, stream);
+  hipMemcpyAsync(recvbuf, recvbuf_d, count * sizeof(T) * numproc, hipMemcpyDeviceToHost, stream);
   hipStreamSynchronize(stream);
 #endif
 
-  bool pass = false;
+  bool pass = true;
   switch(pattern) {
-    case 1:
-      if(myid == ROOT) printf("VERIFY GATHER ROOT = %d\n", ROOT);
-      pass = true;
-      for(int p = 0; p < numproc; p++)
-        for(size_t i = 0; i < count; i++) {
-          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[p * count + i] != i)
-            pass = false;
-        }
+    case 1: if(myid == ROOT) printf("VERIFY GATHER ROOT = %d: ", ROOT);
+      if(myid == ROOT)
+        for(int p = 0; p < numproc; p++)
+          for(size_t i = 0; i < count; i++) {
+            // printf("myid %d recvbuf[%zu] = %d\n", myid, p * count + i, recvbuf[p * count + i]);
+            if(recvbuf[p * count + i] != i)
+              pass = false;
+          }
       break;
-    case 2:
-      if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d\n", ROOT);
-      pass = true;
+    case 2: if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != myid * count + i)
           pass = false;
       }
       break;
-    case 4:
-      if(myid == ROOT) printf("VERIFY BCAST ROOT = %d\n", ROOT);
-      pass = true;
+    case 4: if(myid == ROOT) printf("VERIFY BCAST ROOT = %d: ", ROOT);
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != i)
           pass = false;
       }
       break;
-    case 5:
-      if(myid == ROOT) printf("VERIFY ALL-TO-ALL\n");
-      pass = true;
+    case 5: if(myid == ROOT) printf("VERIFY ALL-TO-ALL: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
@@ -164,9 +157,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
             pass = false;
         }
       break;
-    case 7:
-      if(myid == ROOT) printf("VERIFY ALL-GATHER\n");
-      pass = true;
+    case 7: if(myid == ROOT) printf("VERIFY ALL-GATHER: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
