@@ -151,18 +151,25 @@ namespace ExaComm {
         std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
         {
           for(auto &bcast : bcastlist) {
-            int batchsize = bcast.count / numbatch;
-            for(int batch = 0; batch < numbatch; batch++)
-              bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batch * batchsize, bcast.recvbuf, bcast.recvoffset + batch * batchsize, batchsize, bcast.sendid, bcast.recvids));
+            size_t batchoffset = 0;
+            for(int batch = 0; batch < numbatch; batch++) {
+              size_t batchsize = bcast.count / numbatch + (batch < bcast.count % numbatch ? 1 : 0);
+              if(batchsize) {
+                bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batchoffset, bcast.recvbuf, bcast.recvoffset + batchoffset, batchsize, bcast.sendid, bcast.recvids));
+                batchoffset += batchsize;
+              }
+              else
+                break;
+            }
           }
         }
 	if(groupsize[0] < numproc) {
 	  // SCATTER
+	  //for(int batch = 0; batch < numbatch; batch++)
+	  //  ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	  // STRIPE
 	  for(int batch = 0; batch < numbatch; batch++)
-	    ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
-          // STRIPE BROADCAST
-          //for(int batch = 0; batch < numbatch; batch++)
-	  //  ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	     ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
         }
         // ALLGATHER
         std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);

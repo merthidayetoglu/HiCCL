@@ -126,7 +126,14 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
 
   bool pass = true;
   switch(pattern) {
-    case 1: if(myid == ROOT) printf("VERIFY GATHER ROOT = %d: ", ROOT);
+    case 1: if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != myid * count + i)
+          pass = false;
+      }
+      break;
+    case 2: if(myid == ROOT) printf("VERIFY GATHER ROOT = %d: ", ROOT);
       if(myid == ROOT)
         for(int p = 0; p < numproc; p++)
           for(size_t i = 0; i < count; i++) {
@@ -135,14 +142,7 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
               pass = false;
           }
       break;
-    case 2: if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
-      for(size_t i = 0; i < count; i++) {
-        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != myid * count + i)
-          pass = false;
-      }
-      break;
-    case 4: if(myid == ROOT) printf("VERIFY BCAST ROOT = %d: ", ROOT);
+    case 3: if(myid == ROOT) printf("VERIFY BCAST ROOT = %d: ", ROOT);
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != i)
@@ -157,13 +157,16 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
             pass = false;
         }
       break;
-    case 7: if(myid == ROOT) printf("VERIFY ALL-GATHER: ");
+    case 6: if(myid == ROOT) printf("VERIFY ALL-GATHER: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
           if(recvbuf[p * count + i] != i)
             pass = false;
         }
+      break;
+    default:
+      pass = false;
       break;
   }
 
