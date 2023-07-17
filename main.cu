@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
   int warmup = atoi(argv[4]);
   int numiter = atoi(argv[5]);
 
-  enum pattern {pt2pt, gather, scatter, reduce, broadcast, alltoall, allreduce, allgather, reducescatter};
+  enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, allreduce, reducescatter};
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -122,14 +122,13 @@ int main(int argc, char *argv[])
   recvbuf_d = new Type[count * numproc];
 #endif
 
-  {
+  std::vector<int> proclist;
+  for(int p = 0 ; p < numproc; p++)
+    proclist.push_back(p);
 
+  {
     ExaComm::printid = myid;
     ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
-
-    std::vector<int> proclist;
-    for(int p = 0 ; p < numproc; p++)
-      proclist.push_back(p);
 
     switch (pattern) {
       case gather :
@@ -168,9 +167,9 @@ int main(int argc, char *argv[])
           printf("invalid collective option\n");
     }
 
-    int numlevel = 3;
-    int groupsize[6] = {4, 8, 4, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[6] = {4, 16, 8, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);
@@ -178,8 +177,8 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    coll.measure(warmup, numiter);
-    //coll.report();
+    //coll.measure(warmup, numiter);
+    coll.report();
     
     ExaComm::measure(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);

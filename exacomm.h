@@ -165,8 +165,8 @@ namespace ExaComm {
         }
 	if(groupsize[0] < numproc) {
 	  // SCATTER
-	  //for(int batch = 0; batch < numbatch; batch++)
-	  //  ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
+	  // for(int batch = 0; batch < numbatch; batch++)
+	  //   ExaComm::scatter(comm_mpi, groupsize[0], lib[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
 	  // STRIPE
 	  for(int batch = 0; batch < numbatch; batch++)
 	     ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel-1], bcast_batch[batch], command_batch[batch]);
