@@ -42,7 +42,7 @@
 void print_args();
 
 // USER DEFINED TYPE
-#define Type int
+#define Type size_t
 /*struct Type
 {
   // int tag;
@@ -87,11 +87,11 @@ int main(int argc, char *argv[])
 
     printf("Pattern: ");
     switch(pattern) {
-      case gather : printf("Gather\n"); break;
-      case scatter: printf("Scatter\n"); break;
-      case reduce: printf("Reduce\n"); break;
-      case broadcast : printf("Broadcast\n"); break;
-      case alltoall : printf("All-to-All\n"); break;
+      case gather    : printf("Gather\n");     break;
+      case scatter   : printf("Scatter\n");    break;
+      case reduce    : printf("Reduce\n");     break;
+      case broadcast : printf("Broadcast\n");  break;
+      case alltoall  : printf("All-to-All\n"); break;
       case allgather : printf("All-Gather\n"); break;
       case allreduce : printf("All-Reduce\n"); break;
     }
@@ -150,13 +150,13 @@ int main(int argc, char *argv[])
           for(int recver = 0; recver < numproc; recver++)
             coll.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
-      case allreduce :
-        for(int recver = 0; recver < numproc; recver++)
-          coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
-        break;
       case allgather :
         for(int sender = 0; sender < numproc; sender++)
           coll.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
+        break;
+      case allreduce :
+        for(int recver = 0; recver < numproc; recver++)
+          coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
         break;
       case reducescatter :
         for(int recver = 0; recver < numproc; recver++)
@@ -167,9 +167,9 @@ int main(int argc, char *argv[])
           printf("invalid collective option\n");
     }
 
-    int numlevel = 4;
-    int groupsize[6] = {4, 16, 8, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 2;
+    int groupsize[6] = {4, 4, 8, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);
@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    //coll.measure(warmup, numiter);
-    coll.report();
+    coll.measure(warmup, numiter);
+    // coll.report();
     
     ExaComm::measure(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);

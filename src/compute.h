@@ -1,24 +1,24 @@
 
 #if defined PORT_CUDA || defined PORT_HIP
   template <typename T>
-  __global__ void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
+  __global__ void reduce_kernel(T *output, size_t count, T **input, int numinput) {
      size_t i = blockIdx.x * blockDim.x + threadIdx.x;
      if(i < count) {
-       T output = 0;
-       for(int input = 0; input < numinput; input++)
-         output += inputbuf[input][i];
-       outputbuf[i] = output;
+       T acc = 0;
+       for(int in = 0; in < numinput; in++)
+         acc += input[in][i];
+       output[i] = acc;
      }
   }
 #else
   template <typename T>
-    void reduce_kernel(T* outputbuf, int numinput, T** inputbuf, size_t count) {
+  void reduce_kernel(T *output, size_t count, T **input, int numinput) {
     #pragma omp parallel for
     for(size_t i = 0; i < count; i++) {
-      T output = 0;
-      for(int input = 0; input < numinput; input++)
-        output += inputbuf[input][i];
-      outputbuf[i] = output;
+      T acc = 0;
+      for(int in = 0; in < numinput; in++)
+        acc += inputbuf[in][i];
+      output[i] = acc;
     }
   }
 #endif
@@ -32,6 +32,7 @@
     std::vector<std::vector<T*>> inputbuf;
     std::vector<T*> outputbuf;
     std::vector<size_t> count;
+    std::vector<T**> inputbuf_d;
 #ifdef PORT_CUDA
     std::vector<cudaStream_t*> stream;
 #elif defined PORT_HIP
@@ -49,17 +50,32 @@
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
+      if(myid == compid)
+        for(int in = 0; in < inputbuf.size(); in++)
+          MPI_Send(inputbuf.data() + in, sizeof(T*), MPI_BYTE, ROOT, 0, comm_mpi);
+      if(printid == ROOT) {
+        printf("add compute (%d) outputbuf %p, count %zu\n", compid, outputbuf, count);
+        for(int in = 0; in < inputbuf.size(); in++) {
+          T *inputbuf;
+          MPI_Recv(&inputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
+          printf("                 inputbuf %p\n", inputbuf);
+        }
+      }
       if(myid == compid) {
-        this->inputbuf.push_back(inputbuf);
+        this->inputbuf.push_back(inputbuf); // CPU COPY OF GPU POINTERS
         this->outputbuf.push_back(outputbuf);
         this->count.push_back(count);
+        T **inputbuf_d;
 #ifdef PORT_CUDA
+        cudaMalloc(&inputbuf_d, inputbuf.size() * sizeof(T*));
+        cudaMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), cudaMemcpyHostToDevice);
         stream.push_back(new cudaStream_t);
         cudaStreamCreate(stream[numcomp]);
 #elif defined PORT_HIP
         stream.push_back(new hipStream_t);
         hipStreamCreate(stream[numcomp]);
 #endif
+        this->inputbuf_d.push_back(inputbuf_d);
         numcomp++;
       }
     }
@@ -68,33 +84,48 @@
       int blocksize = 256;
       for(int comp = 0; comp < numcomp; comp++) {
 #if defined PORT_CUDA || defined PORT_HIP
-        int numblocks = (count[comp] + blocksize - 1) / blocksize;
-        reduce_kernel<<<blocksize, numblocks, 0, *stream[comp]>>> (outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
+        reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #else
-        reduce_kernel(outputbuf[comp], inputbuf[comp].size(), inputbuf[comp].data(), count[comp]);
+        reduce_kernel (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #endif
       }
     }
     void wait() {
-      for(int comp = 0; comp < numcomp; comp++)
+      for(int comp = 0; comp < numcomp; comp++) {
 #ifdef PORT_CUDA
         cudaStreamSynchronize(*stream[comp]);
 #elif defined PORT_HIP
         hipStreamSynchronize(*stream[comp]);
 #endif
+      }
     }
 
     void run() { start(); wait(); }
 
     void report() {
+      int myid;
+      int numproc;
+      MPI_Comm_rank(comm_mpi, &myid);
+      MPI_Comm_size(comm_mpi, &numproc);
+      std::vector<int> numcomp_all(numproc);
+      std::vector<int> numinput_all(numproc);
+      
+      MPI_Allgather(&numcomp, 1, MPI_INT, numcomp_all.data(), 1, MPI_INT, MPI_COMM_WORLD);
+      int numinput = 0;
+      for(int comp = 0; comp < numcomp; comp++)
+        numinput += inputbuf[comp].size();
+      MPI_Allgather(&numinput, 1, MPI_INT, numinput_all.data(), 1, MPI_INT, MPI_COMM_WORLD);
       if(printid == ROOT) {
-        printf("numcomp %d\n", numcomp);
-        for(int comp = 0; comp < numcomp; comp++)
-          printf("comp %d count %zu\n", comp, count[comp]);
+        printf("numcomp: ");
+        for(int p = 0; p < numproc; p++)
+          printf("%d(%d) ", numcomp_all[p], numinput_all[p]);
+        printf("\n");
+        printf("\n");
       }
     }
 
     void measure(int warmup, int numiter) {
+      this->report();
       double times[numiter];
       if(printid == ROOT) {
         printf("Measure Reduction Kernel\n");
@@ -121,6 +152,11 @@
       }
       std::sort(times, times + numiter,  [](const double & a, const double & b) -> bool {return a < b;});
 
+      double data = 0;
+      for(int comp = 0; comp < numcomp; comp++)
+        data += count[comp] * sizeof(T) * (inputbuf[comp].size() + 1);
+      MPI_Allreduce(MPI_IN_PLACE, &data, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
+
       if(printid == ROOT) {
         printf("%d measurement iterations (sorted):\n", numiter);
         for(int iter = 0; iter < numiter; iter++) {
@@ -142,7 +178,6 @@
         for(int iter = 0; iter < numiter; iter++)
           avgTime += times[iter];
         avgTime /= numiter;
-        double data = accumulate(count.begin(), count.end(), 0) * sizeof(T);
         if (data < 1e3)
           printf("data: %d bytes\n", (int)data);
         else if (data < 1e6)

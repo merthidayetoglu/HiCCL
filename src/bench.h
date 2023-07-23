@@ -59,7 +59,7 @@ void measure(size_t count, int warmup, int numiter, ExaComm::Comm<T> &comm) {
     for(int iter = 0; iter < numiter; iter++)
       avgTime += times[iter];
     avgTime /= numiter;
-    double data = count * sizeof(int);
+    double data = count * sizeof(T);
     if (data < 1e3)
       printf("data: %d bytes\n", (int)data);
     else if (data < 1e6)
@@ -79,7 +79,7 @@ void measure(size_t count, int warmup, int numiter, ExaComm::Comm<T> &comm) {
 }
 
 template <typename T>
-void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm::Comm<T> &comm) {
+void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, ExaComm::Comm<T> &comm) {
 
   int myid;
   int numproc;
@@ -149,6 +149,14 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
           pass = false;
       }
       break;
+    case 4: if(myid == ROOT) printf("VERIFY REDUCE ROOT = %d: ", ROOT);
+      if(myid == ROOT)
+        for(size_t i = 0; i < count; i++) {
+          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          if(recvbuf[i] != i * numproc)
+            pass = false;
+        }
+      break;
     case 5: if(myid == ROOT) printf("VERIFY ALL-TO-ALL: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
@@ -164,6 +172,20 @@ void validate(int *sendbuf_d, int *recvbuf_d, size_t count, int pattern, ExaComm
           if(recvbuf[p * count + i] != i)
             pass = false;
         }
+      break;
+    case 7: if(myid == ROOT) printf("VERIFY ALL-REDUCE: ");
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != i * numproc)
+          pass = false;
+      }
+      break;
+    case 8: if(myid == ROOT) printf("VERIFY REDUCE-SCATTER: ");
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != (myid * count + i) * numproc)
+          pass = false;
+      }
       break;
     default:
       pass = false;

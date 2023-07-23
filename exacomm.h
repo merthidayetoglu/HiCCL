@@ -26,7 +26,7 @@ namespace ExaComm {
   FILE *pFile;
   size_t buffsize = 0;
 
-#include "src/comp.h"
+#include "src/compute.h"
 
   template <typename T>
   class Command {
@@ -38,14 +38,12 @@ namespace ExaComm {
 
     Command(CommBench::Comm<T> *comm) : comm(comm) {}
     Command(ExaComm::Compute<T> *compute) : compute(compute) {}
-    /*Command(Command &t) {
-      comm = t.comm;
-      compute = t.compute;
-    }*/
 
     void start() {
-      if(comm) comm->start();
-      if(compute) compute->start();
+      if(comm)
+        comm->start();
+      if(compute)
+        compute->start();
     }
     void wait() {
       if(comm)
@@ -144,6 +142,14 @@ namespace ExaComm {
         }
         printf("\n");
       }
+      if(printid == ROOT)
+        printf("provided BCAST list size: %zu\n", bcastlist.size());
+      for(auto &bcast : bcastlist)
+        bcast.report(ROOT);
+      if(printid == ROOT)
+        printf("provided REDUCE list size: %zu\n", reducelist.size());
+      for(auto &reduce : reducelist)
+        reduce.report(ROOT);
       // INIT BROADCAST
       if(bcastlist.size())
       {
@@ -177,13 +183,39 @@ namespace ExaComm {
         for(int batch = 0; batch < numbatch; batch++)
           ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_batch[batch], 1, command_batch[batch]);
       }
+      // INIT REDUCE
+      if(reducelist.size())
+      {
+        CommBench::Comm<T> *comm = new CommBench::Comm<T>(MPI_COMM_WORLD, CommBench::NCCL);
+        Compute<T> *compute = new Compute<T>(MPI_COMM_WORLD);
+        for(auto &reduce : reducelist) {
+          std::vector<T*> inputbuf;
+          for(int send = 0; send < reduce.sendids.size(); send++) {
+            T *recvbuf;
+            if(myid == reduce.recvid) {
+#ifdef PORT_CUDA
+              cudaMalloc(&recvbuf, reduce.count * sizeof(T));
+#elif defined PORT_HIP
+              hipMalloc(&recvbuf, reduce.count * sizeof(T));
+#else
+              recvbuf = new T[reduce.count];
+#endif
+              buffsize += reduce.count;
+            }
+            comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, reduce.sendids[send], reduce.recvid);
+            inputbuf.push_back(recvbuf);
+          }
+          compute->add(inputbuf, reduce.recvbuf + reduce.recvoffset, reduce.count, reduce.recvid);
+        }
+        command_batch[0].push_back(comm);
+        command_batch[0].push_back(compute);
+      }
       // ADD INITIAL DUMMY COMMUNICATORS INTO THE PIPELINE
       if(bcastlist.size() | reducelist.size()) {
         for(int batch = 0; batch < numbatch; batch++)
           for(int c = 0; c < batch; c++)
             command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI)));
       }
-
       // REPORT
       {
         std::vector<size_t> buffsize_all(numproc);

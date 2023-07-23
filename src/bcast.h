@@ -20,21 +20,22 @@ template <typename T>
         MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
         MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
       }
-      for(auto recvid : this->recvids)
+      for(auto &recvid : this->recvids) {
         if(printid == recvid) {
           MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
           MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
         }
+      }
       if(printid == id) {
         T* sendbuf_sendid;
         size_t sendoffset_sendid;
         MPI_Recv(&sendbuf_sendid, sizeof(T*), MPI_BYTE, sendid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Recv(&sendoffset_sendid, sizeof(size_t), MPI_BYTE, sendid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        size_t recvoffset_recvid[recvids.size()];
-        T* recvbuf_recvid[recvids.size()];
+	std::vector<T*> recvbuf_recvid(recvids.size());
+	std::vector<size_t> recvoffset_recvid(recvids.size());
         for(int recv = 0; recv < recvids.size(); recv++) {
-          MPI_Recv(recvbuf_recvid + recv, sizeof(T*), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          MPI_Recv(recvoffset_recvid + recv, sizeof(size_t), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          MPI_Recv(recvbuf_recvid.data() + recv, sizeof(T*), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          MPI_Recv(recvoffset_recvid.data() + recv, sizeof(size_t), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
         printf("BCAST report: count %lu\n", count);
         char text[1000];
