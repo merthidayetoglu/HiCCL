@@ -42,7 +42,7 @@
 void print_args();
 
 // USER DEFINED TYPE
-#define Type size_t
+#define Type float
 /*struct Type
 {
   // int tag;
@@ -131,19 +131,32 @@ int main(int argc, char *argv[])
     ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
 
     switch (pattern) {
-      case gather :
-        for(int p = 0; p < numproc; p++)
-          coll.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
-        break;
       case scatter :
         for(int p = 0; p < numproc; p++)
           coll.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
-      case reduce :
-        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+      case gather :
+        for(int p = 0; p < numproc; p++)
+          coll.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
-        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        // coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        {
+	  size_t count_part = count / numproc;
+          for(int recver = 0; recver < numproc; recver++)
+            coll.add(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
+	  coll.fence();
+	  for(int sender = 0; sender < numproc; sender++) {
+            std::vector<int> recvids;
+            for(int recver = 0; recver < numproc; recver++)
+              if(recver != sender)
+                recvids.push_back(recver);
+            coll.add(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids);
+          }
+        }
+        break;
+      case reduce :
+        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -155,8 +168,21 @@ int main(int argc, char *argv[])
           coll.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
         break;
       case allreduce :
-        for(int recver = 0; recver < numproc; recver++)
-          coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+        // for(int recver = 0; recver < numproc; recver++)
+        //   coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+        {
+          size_t count_part = count / numproc;
+          for(int recver = 0; recver < numproc; recver++)
+            coll.add(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
+          coll.fence();
+          for(int sender = 0; sender < numproc; sender++) {
+            std::vector<int> recvids;
+            for(int recver = 0; recver < numproc; recver++)
+              if(recver != sender)
+                recvids.push_back(recver);
+            coll.add(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids);
+          }
+	}
         break;
       case reducescatter :
         for(int recver = 0; recver < numproc; recver++)
@@ -168,8 +194,8 @@ int main(int argc, char *argv[])
     }
 
     int numlevel = 2;
-    int groupsize[6] = {4, 4, 8, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int groupsize[6] = {numproc, 4, 4, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);

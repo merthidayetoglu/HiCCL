@@ -291,3 +291,20 @@ template <typename T>
     for(auto &bcast : bcastlist_new)
       bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
   }
+
+  template <typename T>
+  void batch(std::vector<BCAST<T>> &bcastlist, int numbatch, std::vector<std::vector<BCAST<T>>> &bcast_batch) {
+    for(auto &bcast : bcastlist) {
+      size_t batchoffset = 0;
+      for(int batch = 0; batch < numbatch; batch++) {
+        size_t batchsize = bcast.count / numbatch + (batch < bcast.count % numbatch ? 1 : 0);
+        if(batchsize) {
+          bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batchoffset, bcast.recvbuf, bcast.recvoffset + batchoffset, batchsize, bcast.sendid, bcast.recvids));
+          batchoffset += batchsize;
+        }
+        else
+          break;
+      }
+    }
+  }
+
