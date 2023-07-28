@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
     for(int recver = 0; recver < numproc; recver++)
       if(recver != sender)
         recvids[sender].push_back(recver);
+
   size_t count_part = count / numproc;
 
 
@@ -149,19 +150,24 @@ int main(int argc, char *argv[])
         break;
       case broadcast :
         // coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        // SCATTER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
+        // ALL-GATHER
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reduce :
         // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+        // REDUCE-SCATTER
 	for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
+        // GATHER
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
+          if(sender != ROOT)
+            coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
