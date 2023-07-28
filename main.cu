@@ -33,8 +33,6 @@
 // #define PORT_HIP
 // #define PORT_SYCL
 
-#include "../CommBench/verification/coll.h"
-
 #include "exacomm.h"
 
 // UTILITIES
@@ -74,7 +72,7 @@ int main(int argc, char *argv[])
   int warmup = atoi(argv[4]);
   int numiter = atoi(argv[5]);
 
-  enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, allreduce, reducescatter};
+  enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -87,13 +85,14 @@ int main(int argc, char *argv[])
 
     printf("Pattern: ");
     switch(pattern) {
-      case gather    : printf("Gather\n");     break;
-      case scatter   : printf("Scatter\n");    break;
-      case reduce    : printf("Reduce\n");     break;
-      case broadcast : printf("Broadcast\n");  break;
-      case alltoall  : printf("All-to-All\n"); break;
-      case allgather : printf("All-Gather\n"); break;
-      case allreduce : printf("All-Reduce\n"); break;
+      case scatter       : printf("Scatter\n");        break;
+      case gather        : printf("Gather\n");         break;
+      case broadcast     : printf("Broadcast\n");      break;
+      case reduce        : printf("Reduce\n");         break;
+      case alltoall      : printf("All-to-All\n");     break;
+      case allgather     : printf("All-Gather\n");     break;
+      case reducescatter : printf("Reduce-Scatter\n"); break;
+      case allreduce     : printf("All-Reduce\n");     break;
     }
     printf("Number of batches: %d\n", numbatch);
 
@@ -176,19 +175,19 @@ int main(int argc, char *argv[])
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
         break;
+      case reducescatter :
+        for(int recver = 0; recver < numproc; recver++)
+          coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
+        break;
       case allreduce :
         // for(int recver = 0; recver < numproc; recver++)
         //   coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
-        // REDUCE-SCATTER + ALL-REDUCE
+        // REDUCE-SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
-        break;
-      case reducescatter :
-        for(int recver = 0; recver < numproc; recver++)
-          coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       default:
         if(myid == ROOT)
@@ -196,9 +195,9 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 3;
-    int groupsize[6] = {numproc, 8, 4, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 2;
+    int groupsize[6] = {numproc, 4, 8, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);

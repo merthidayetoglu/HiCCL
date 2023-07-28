@@ -173,17 +173,17 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, ExaComm::Co
             pass = false;
         }
       break;
-    case 7: if(myid == ROOT) printf("VERIFY ALL-REDUCE: ");
-      for(size_t i = 0; i < count; i++) {
-        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != i * numproc)
-          pass = false;
-      }
-      break;
-    case 8: if(myid == ROOT) printf("VERIFY REDUCE-SCATTER: ");
+    case 7: if(myid == ROOT) printf("VERIFY REDUCE-SCATTER: ");
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != (myid * count + i) * numproc)
+          pass = false;
+      }
+      break;
+    case 8: if(myid == ROOT) printf("VERIFY ALL-REDUCE: ");
+      for(size_t i = 0; i < count; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != i * numproc)
           pass = false;
       }
       break;
