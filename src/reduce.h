@@ -92,11 +92,9 @@
         int recvgroup = reduce.recvid / groupsize[level];
         for(int sendgroup = 0; sendgroup < numgroup; sendgroup++) {
           std::vector<int> sendids;
-          // FIND OUTBOUND COMMUNICATIONS
-          for(auto &sendid : reduce.sendids) {
+          for(auto &sendid : reduce.sendids)
             if(sendid / groupsize[level] == sendgroup)
               sendids.push_back(sendid);
-          }
           if(sendids.size()) {
             if(printid == ROOT) {
               printf("recvgroup: %d recvid: %d sendgroup: %d sendids: ", recvgroup, reduce.recvid, sendgroup);
@@ -106,11 +104,11 @@
             }
             int recvid = sendgroup * groupsize[level] + reduce.recvid % groupsize[level];
             if(myid == recvid) {
-              if(level == 0) {
+              if(recvid == reduce.recvid) {
                 outputbuf = reduce.recvbuf;
                 outputoffset = reduce.recvoffset;
               }
-              else {
+	      else {
 #ifdef PORT_CUDA
                 cudaMalloc(&outputbuf, reduce.count * sizeof(T));
 #elif defined PORT_HIP
@@ -145,7 +143,7 @@
             compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
             sendids_new.push_back(recvid);
           }
-  	}
+        }
         reducelist_new.push_back(REDUCE<T>(outputbuf, outputoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_new, reduce.recvid));
       }
     }

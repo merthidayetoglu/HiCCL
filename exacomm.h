@@ -174,9 +174,15 @@ namespace ExaComm {
           // PARTITION INTO BATCHES
           std::vector<std::vector<REDUCE<T>>> reduce_batch(numbatch);
           ExaComm::batch(reducelist, numbatch, reduce_batch);
-          // HIERARCHICAL REDUCE
+          // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++)
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], numlevel - 1, command_batch[batch]);
+            if(groupsize[0] < numlevel) {
+              // HIERARCHICAL REDUCTION RING
+            }
+            else {
+              // HIERARCHICAL REDUCTION TREE
+              ExaComm::reduce_tree(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], numlevel - 1, command_batch[batch]);
+            }
         }
         // INIT BROADCAST
         std::vector<BCAST<T>> &bcastlist = bcast_epoch[epoch];
@@ -185,9 +191,16 @@ namespace ExaComm {
           // PARTITION INTO BATCHES
           std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
-          // HIERARHICAL BROADCAST
+          // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++)
-            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], 1, command_batch[batch]);
+            if(groupsize[0] < numlevel) {
+              // HIERARCHICAL BROADCAST RING
+
+            }
+            else {
+              // HIERARCHICAL BROADCAST TREE
+              ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], 1, command_batch[batch]);
+            }
         }
       }
       // INITIALIZE BATCH PIPELINE WITH DUMMY COMMANDS
