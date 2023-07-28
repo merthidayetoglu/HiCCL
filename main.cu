@@ -150,21 +150,19 @@ int main(int argc, char *argv[])
         break;
       case broadcast :
         // coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
-        // SCATTER
+        // SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
-        // ALL-GATHER
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reduce :
         // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
-        // REDUCE-SCATTER
+        // REDUCE-SCATTER + GATHER
 	for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
-        // GATHER
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
             coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
@@ -181,6 +179,7 @@ int main(int argc, char *argv[])
       case allreduce :
         // for(int recver = 0; recver < numproc; recver++)
         //   coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+        // REDUCE-SCATTER + ALL-REDUCE
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
@@ -197,9 +196,9 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 2;
-    int groupsize[6] = {numproc, 4, 4, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 3;
+    int groupsize[6] = {numproc, 8, 4, 4, 2, 1};
+    CommBench::library library[6] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch);
