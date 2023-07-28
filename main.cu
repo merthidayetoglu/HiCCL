@@ -125,7 +125,15 @@ int main(int argc, char *argv[])
   std::vector<int> proclist;
   for(int p = 0 ; p < numproc; p++)
     proclist.push_back(p);
+  std::vector<std::vector<int>> recvids(numproc);
+  for(int sender = 0; sender < numproc; sender++)
+    for(int recver = 0; recver < numproc; recver++)
+      if(recver != sender)
+        recvids[sender].push_back(recver);
+  size_t count_part = count / numproc;
 
+
+  // PATTERN DESRIPTION
   {
     ExaComm::printid = myid;
     ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
@@ -133,66 +141,56 @@ int main(int argc, char *argv[])
     switch (pattern) {
       case scatter :
         for(int p = 0; p < numproc; p++)
-          coll.add(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
+          coll.add_reduce(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, p);
         break;
       case gather :
         for(int p = 0; p < numproc; p++)
-          coll.add(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
+          coll.add_bcast(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
         // coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
-        {
-	  size_t count_part = count / numproc;
-          for(int recver = 0; recver < numproc; recver++)
-            coll.add(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
-	  coll.fence();
-	  for(int sender = 0; sender < numproc; sender++) {
-            std::vector<int> recvids;
-            for(int recver = 0; recver < numproc; recver++)
-              if(recver != sender)
-                recvids.push_back(recver);
-            coll.add(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids);
-          }
-        }
+        for(int recver = 0; recver < numproc; recver++)
+          coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
+        coll.fence();
+        for(int sender = 0; sender < numproc; sender++)
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reduce :
-        coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+        // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+	for(int recver = 0; recver < numproc; recver++)
+          coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
+        coll.fence();
+        for(int sender = 0; sender < numproc; sender++)
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
           for(int recver = 0; recver < numproc; recver++)
-            coll.add(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
+            coll.add_bcast(sendbuf_d, recver * count, recvbuf_d, sender * count, count, sender, recver);
         break;
       case allgather :
         for(int sender = 0; sender < numproc; sender++)
-          coll.add(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
+          coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, proclist);
         break;
       case allreduce :
         // for(int recver = 0; recver < numproc; recver++)
         //   coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
-        {
-          size_t count_part = count / numproc;
-          for(int recver = 0; recver < numproc; recver++)
-            coll.add(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
-          coll.fence();
-          for(int sender = 0; sender < numproc; sender++) {
-            std::vector<int> recvids;
-            for(int recver = 0; recver < numproc; recver++)
-              if(recver != sender)
-                recvids.push_back(recver);
-            coll.add(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids);
-          }
-	}
+        for(int recver = 0; recver < numproc; recver++)
+          coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
+        coll.fence();
+        for(int sender = 0; sender < numproc; sender++)
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reducescatter :
         for(int recver = 0; recver < numproc; recver++)
-          coll.add(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
+          coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       default:
         if(myid == ROOT)
           printf("invalid collective option\n");
     }
 
+    // MACHINE DESCRIPTION
     int numlevel = 2;
     int groupsize[6] = {numproc, 4, 4, 4, 2, 1};
     CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
@@ -205,7 +203,7 @@ int main(int argc, char *argv[])
 
     coll.measure(warmup, numiter);
     // coll.report();
-    
+
     ExaComm::measure(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
   }

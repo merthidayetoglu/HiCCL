@@ -72,6 +72,8 @@
         stream.push_back(new cudaStream_t);
         cudaStreamCreate(stream[numcomp]);
 #elif defined PORT_HIP
+        hipMalloc(&inputbuf_d, inputbuf.size() * sizeof(T*));
+        hipMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), hipMemcpyHostToDevice);
         stream.push_back(new hipStream_t);
         hipStreamCreate(stream[numcomp]);
 #endif

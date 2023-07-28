@@ -88,9 +88,11 @@
       for(auto reduce : reducelist) {
         std::vector<int> sendids_new;
         T* outputbuf;
+        size_t outputoffset;
         int recvgroup = reduce.recvid / groupsize[level];
         for(int sendgroup = 0; sendgroup < numgroup; sendgroup++) {
           std::vector<int> sendids;
+          // FIND OUTBOUND COMMUNICATIONS
           for(auto &sendid : reduce.sendids) {
             if(sendid / groupsize[level] == sendgroup)
               sendids.push_back(sendid);
@@ -104,9 +106,11 @@
             }
             int recvid = sendgroup * groupsize[level] + reduce.recvid % groupsize[level];
             if(myid == recvid) {
-              if(level == 0)
-                outputbuf = reduce.recvbuf + reduce.recvoffset;
-	      else {
+              if(level == 0) {
+                outputbuf = reduce.recvbuf;
+                outputoffset = reduce.recvoffset;
+              }
+              else {
 #ifdef PORT_CUDA
                 cudaMalloc(&outputbuf, reduce.count * sizeof(T));
 #elif defined PORT_HIP
@@ -114,11 +118,12 @@
 #else
                 outputbuf = new T[reduce.count];
 #endif
+                outputoffset = 0;
                 buffsize += reduce.count;
-	      }
+              }
             }
             std::vector<T*> inputbuf;
-	    for(auto &sendid : sendids) {
+            for(auto &sendid : sendids) {
               if(sendid != recvid) {
                 T *recvbuf;
                 if(myid == recvid) {
@@ -130,18 +135,18 @@
                   recvbuf = new T[reduce.count];
 #endif
                   buffsize += reduce.count;
-		}
+                }
                 comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
                 inputbuf.push_back(recvbuf);
               }
               else
                 inputbuf.push_back(reduce.sendbuf + reduce.sendoffset);
-	    }
-            compute->add(inputbuf, outputbuf, reduce.count, recvid);
+            }
+            compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
             sendids_new.push_back(recvid);
           }
   	}
-        reducelist_new.push_back(REDUCE<T>(outputbuf, 0, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_new, reduce.recvid));
+        reducelist_new.push_back(REDUCE<T>(outputbuf, outputoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_new, reduce.recvid));
       }
     }
     reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist);
