@@ -142,7 +142,7 @@ namespace ExaComm {
       if(printid == ROOT) {
         printf("NUMBER OF EPOCHS: %d\n", numepoch);
         for(int epoch = 0; epoch < numepoch; epoch++)
-          printf("epoch %d: %d bcast %d reduce\n", epoch, bcast_epoch[epoch].size(), reduce_epoch[epoch].size());
+          printf("epoch %d: %zu bcast %zu reduction\n", epoch, bcast_epoch[epoch].size(), reduce_epoch[epoch].size());
         printf("Initialize ExaComm with %d levels\n", numlevel);
         for(int level = 0; level < numlevel; level++) {
           printf("level %d groupsize %d library: ", level, groupsize[level]);
@@ -208,13 +208,13 @@ namespace ExaComm {
           for(int c = 0; c < batch; c++)
             command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI)));
       }
-      // REPORT
+      // REPORT MEMORY
       {
         std::vector<size_t> buffsize_all(numproc);
         MPI_Allgather(&buffsize, sizeof(size_t), MPI_BYTE, buffsize_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
         if(printid == ROOT) {
           for(int p = 0; p < numproc; p++)
-            printf("ExaComm Memory [%d]: %zu bytes\n", p, buffsize_all[p] * sizeof(size_t));
+            printf("ExaComm Memory [%d]: %zu bytes\n", p, buffsize_all[p] * sizeof(T));
           printf("command_batch size %zu: ", command_batch.size());
           for(int i = 0; i < command_batch.size(); i++)
             printf("%zu ", command_batch[i].size());
