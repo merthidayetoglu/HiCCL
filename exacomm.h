@@ -195,7 +195,6 @@ namespace ExaComm {
           for(int batch = 0; batch < numbatch; batch++)
             if(groupsize[0] < numlevel) {
               // HIERARCHICAL BROADCAST RING
-
             }
             else {
               // HIERARCHICAL BROADCAST TREE
@@ -235,15 +234,14 @@ namespace ExaComm {
       while(!finished) {
         finished = true;
         for(int i = 0; i < command_batch.size(); i++)
-          if(commandptr[i] != command_batch[i].end())
+          if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->start();
-        for(int i = 0; i < command_batch.size(); i++)
-          if(commandptr[i] != command_batch[i].end())
-            commandptr[i]->wait();
+            finished = false;
+          }
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
+            commandptr[i]->wait();
             commandptr[i]++;
-            finished = false;
           }
       }
     }
