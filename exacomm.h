@@ -236,11 +236,14 @@ namespace ExaComm {
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->start();
-            finished = false;
           }
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->wait();
+          }
+        for(int i = 0; i < command_batch.size(); i++)
+          if(commandptr[i] != command_batch[i].end()) {
+            finished = false;
             commandptr[i]++;
           }
       }
