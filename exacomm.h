@@ -128,7 +128,7 @@ namespace ExaComm {
     }
 
     // INITIALIZE BROADCAST AND REDUCTION TREES
-    void init(int numlevel, int groupsize[], CommBench::library lib[], int numbatch) {
+    void init(int numlevel, int groupsize[], CommBench::library lib[], int numbatch, int pipelineoffset) {
 
       int myid;
       int numproc;
@@ -205,7 +205,7 @@ namespace ExaComm {
       // INITIALIZE BATCH PIPELINE WITH DUMMY COMMANDS
       {
         for(int batch = 0; batch < numbatch; batch++)
-          for(int c = 0; c < batch; c++)
+          for(int c = 0; c < batch * pipelineoffset; c++)
             command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI)));
       }
       // REPORT MEMORY

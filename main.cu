@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 #include "exacomm.h"
@@ -40,7 +40,7 @@
 void print_args();
 
 // USER DEFINED TYPE
-#define Type float
+#define Type int
 /*struct Type
 {
   // int tag;
@@ -68,9 +68,10 @@ int main(int argc, char *argv[])
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
   int numbatch = atoi(argv[2]);
-  size_t count = atol(argv[3]);
-  int warmup = atoi(argv[4]);
-  int numiter = atoi(argv[5]);
+  int pipeoffset = atoi(argv[3]);
+  size_t count = atol(argv[4]);
+  int warmup = atoi(argv[5]);
+  int numiter = atoi(argv[6]);
 
   enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[])
       case allreduce     : printf("All-Reduce\n");     break;
     }
     printf("Number of batches: %d\n", numbatch);
+    printf("Pipeline offset: %d\n", pipeoffset);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
@@ -195,12 +197,12 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 2;
-    int groupsize[6] = {numproc, 4, 8, 4, 2, 1};
-    CommBench::library library[6] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[5] = {numproc, 16, 8, 2, 2};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
-    coll.init(numlevel, groupsize, library, numbatch);
+    coll.init(numlevel, groupsize, library, numbatch, pipeoffset);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
