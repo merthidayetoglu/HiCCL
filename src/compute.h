@@ -50,10 +50,14 @@
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
-      if(myid == compid)
+      if(myid == compid) {
+        MPI_Send(&outputbuf, sizeof(T*), MPI_BYTE, ROOT, 0, comm_mpi);
         for(int in = 0; in < inputbuf.size(); in++)
           MPI_Send(inputbuf.data() + in, sizeof(T*), MPI_BYTE, ROOT, 0, comm_mpi);
+      }
       if(printid == ROOT) {
+        T *outputbuf;
+        MPI_Recv(&outputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
         printf("add compute (%d) outputbuf %p, count %zu\n", compid, outputbuf, count);
         for(int in = 0; in < inputbuf.size(); in++) {
           T *inputbuf;

@@ -73,12 +73,9 @@ template <typename T>
     if(level == numlevel) {
       if(printid == ROOT)
          printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
-      for(auto bcast : bcastlist) {
-        for(auto recvid : bcast.recvids) {
-          int sendid = bcast.sendid;
-          comm_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, sendid, recvid);
-        }
-      }
+      for(auto bcast : bcastlist)
+        for(auto recvid : bcast.recvids)
+          comm_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvid);
       if(printid == ROOT)
         printf("\n");
       return;
@@ -98,11 +95,8 @@ template <typename T>
               if(group == recvgroup)
                 recvids.push_back(recvid);
             }
-            if(recvids.size()) {
-              // if(printid == ROOT)
-              //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, bcast.sendid);
+            if(recvids.size())
               bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids));
-            }
           }
         }
       }
@@ -124,7 +118,7 @@ template <typename T>
               // if(printid == ROOT)
               //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
               T *recvbuf;
-              int recvoffset;
+              size_t recvoffset;
               bool found = false;
               for(auto it = recvids.begin(); it != recvids.end(); ++it) {
                 if(*it == recvid) {
@@ -137,7 +131,7 @@ template <typename T>
                   break;
                 }
               }
-              if(!found && myid == recvid) {
+              if(!found && (myid == recvid)) {
 #ifdef PORT_CUDA
                 cudaMalloc(&recvbuf, bcast.count * sizeof(T));
 #elif defined PORT_HIP
@@ -148,9 +142,8 @@ template <typename T>
                 printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
               }
               comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
-              if(recvids.size()) {
+              if(recvids.size())
                 bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids));
-              }
             }
           }
         }

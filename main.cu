@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+#include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 #include "exacomm.h"
@@ -131,7 +131,6 @@ int main(int argc, char *argv[])
     for(int recver = 0; recver < numproc; recver++)
       if(recver != sender)
         recvids[sender].push_back(recver);
-
   size_t count_part = count / numproc;
 
 
@@ -150,23 +149,23 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
-        // coll.add(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
-        // SCATTER + ALL-GATHER
+        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        /*// SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
         break;
       case reduce :
-        // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
-        // REDUCE-SCATTER + GATHER
+        coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+        /*// REDUCE-SCATTER + GATHER
 	for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
-            coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
+            coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);*/
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -182,14 +181,14 @@ int main(int argc, char *argv[])
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       case allreduce :
-        // for(int recver = 0; recver < numproc; recver++)
-        //   coll.add(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
-        // REDUCE-SCATTER + ALL-GATHER
+        for(int recver = 0; recver < numproc; recver++)
+           coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+        /*// REDUCE-SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
         break;
       default:
         if(myid == ROOT)
@@ -197,9 +196,9 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 4;
-    int groupsize[5] = {numproc, 16, 8, 2, 2};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 2;
+    int groupsize[5] = {numproc, 4, 1, 1, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch, pipeoffset);

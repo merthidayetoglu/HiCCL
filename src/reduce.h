@@ -71,7 +71,7 @@
     CommBench::Comm<T> *comm = new CommBench::Comm<T>(comm_mpi, lib[level]);
     ExaComm::Compute<T> *compute = new ExaComm::Compute<T>(comm_mpi);
     commandlist.push_back(Command<T>(comm));
-    commandlist.push_back(Command<T>(compute));
+    bool compute_found = false;
 
     std::vector<REDUCE<T>> reducelist_new;
 
@@ -83,12 +83,11 @@
     for(auto &reduce : reducelist)
       reduce.report(ROOT);
 
-    // GLOBAL COMMUNICATIONS
     {
       for(auto reduce : reducelist) {
         std::vector<int> sendids_new;
-        T* outputbuf;
-        size_t outputoffset;
+        std::vector<T*> sendbuf_new;
+        std::vector<size_t> sendoffset_new;
         int recvgroup = reduce.recvid / groupsize[level];
         for(int sendgroup = 0; sendgroup < numgroup; sendgroup++) {
           std::vector<int> sendids;
@@ -103,11 +102,13 @@
               printf("\n");
             }
             int recvid = sendgroup * groupsize[level] + reduce.recvid % groupsize[level];
+            T* outputbuf;
+            size_t outputoffset;
             if(myid == recvid) {
               if(recvid == reduce.recvid) {
                 outputbuf = reduce.recvbuf;
                 outputoffset = reduce.recvoffset;
-              }
+	      }
 	      else {
 #ifdef PORT_CUDA
                 cudaMalloc(&outputbuf, reduce.count * sizeof(T));
@@ -118,35 +119,63 @@
 #endif
                 outputoffset = 0;
                 buffsize += reduce.count;
-              }
+	      }
             }
-            std::vector<T*> inputbuf;
-            for(auto &sendid : sendids) {
-              if(sendid != recvid) {
-                T *recvbuf;
-                if(myid == recvid) {
+            // if(sendids.size() > 1) {
+              std::vector<T*> inputbuf;
+              for(auto &sendid : sendids) {
+                if(sendid != recvid) {
+                  T *recvbuf;
+                  if(myid == recvid) {
 #ifdef PORT_CUDA
-                  cudaMalloc(&recvbuf, reduce.count * sizeof(T));
+                    cudaMalloc(&recvbuf, reduce.count * sizeof(T));
 #elif defined PORT_HIP
-                  hipMalloc(&recvbuf, reduce.count * sizeof(T));
+                    hipMalloc(&recvbuf, reduce.count * sizeof(T));
 #else
-                  recvbuf = new T[reduce.count];
+                    recvbuf = new T[reduce.count];
 #endif
-                  buffsize += reduce.count;
+                    buffsize += reduce.count;
+                  }
+                  comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
+                  inputbuf.push_back(recvbuf);
                 }
-                comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
-                inputbuf.push_back(recvbuf);
+                else
+                  inputbuf.push_back(reduce.sendbuf + reduce.sendoffset);
               }
-              else
-                inputbuf.push_back(reduce.sendbuf + reduce.sendoffset);
-            }
-            compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
+              compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
+              compute_found = true;
+            /*}
+	    else {
+              //if(level == numlevel - 1)
+                comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
+              //else if (sendids[0] != recvid)
+              //  comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
+              //else {
+              //  outputbuf = reduce.sendbuf;
+              //  outputoffset = reduce.sendoffset;
+              //}
+            }*/
             sendids_new.push_back(recvid);
+            sendbuf_new.push_back(outputbuf);
+            sendoffset_new.push_back(outputoffset);
           }
         }
-        reducelist_new.push_back(REDUCE<T>(outputbuf, outputoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_new, reduce.recvid));
+        if(sendids_new.size()) {
+          T *sendbuf;
+          size_t sendoffset;
+          for(int i = 0; i < sendids_new.size(); i++)
+            if(myid == sendids_new[i]) {
+              sendbuf = sendbuf_new[i];
+              sendoffset = sendoffset_new[i];
+            }
+          reducelist_new.push_back(REDUCE<T>(sendbuf, sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_new, reduce.recvid));
+        }
       }
     }
+    if(compute_found)
+      commandlist.push_back(Command<T>(compute));
+    else
+      delete compute;
     reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist);
   }
 
