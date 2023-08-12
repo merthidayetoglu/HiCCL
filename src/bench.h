@@ -99,6 +99,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, Comm &comm)
   for(int p = 0; p < numproc; p++)
     for(size_t i = p * count; i < (p + 1) * count; i++)
       sendbuf[i] = i;
+  memset(recvbuf, -1, count * numproc * sizeof(T));
 #ifdef PORT_CUDA
   cudaMemcpy(sendbuf_d, sendbuf, count * sizeof(T) * numproc, cudaMemcpyHostToDevice);
   cudaMemset(recvbuf_d, -1, count * numproc * sizeof(T));
@@ -112,7 +113,6 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, Comm &comm)
   hipStreamCreate(&stream);
   hipDeviceSynchronize();
 #endif
-  memset(recvbuf, -1, count * numproc * sizeof(T));
   MPI_Barrier(MPI_COMM_WORLD);
 
   comm.run();

@@ -210,8 +210,7 @@ int main(int argc, char *argv[])
     // coll.report();
 
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
-    for(int iter = 0; iter < numiter; iter++)
-      ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
+    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
   }
 
 // DEALLOCATE
