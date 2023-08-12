@@ -121,7 +121,7 @@
                 buffsize += reduce.count;
 	      }
             }
-            // if(sendids.size() > 1) {
+            if(sendids.size() > 1) {
               std::vector<T*> inputbuf;
               for(auto &sendid : sendids) {
                 if(sendid != recvid) {
@@ -144,17 +144,15 @@
               }
               compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
               compute_found = true;
-            /*}
+            }
 	    else {
-              //if(level == numlevel - 1)
+              if(level == numlevel - 1 || sendids[0] != recvid)
                 comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-              //else if (sendids[0] != recvid)
-              //  comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-              //else {
-              //  outputbuf = reduce.sendbuf;
-              //  outputoffset = reduce.sendoffset;
-              //}
-            }*/
+              else {
+                outputbuf = reduce.sendbuf;
+                outputoffset = reduce.sendoffset;
+              }
+            }
             sendids_new.push_back(recvid);
             sendbuf_new.push_back(outputbuf);
             sendoffset_new.push_back(outputoffset);
@@ -172,6 +170,7 @@
         }
       }
     }
+    // ADD COMPUTE (IF ANY) OTHERWISE CLEAR MEMORY
     if(compute_found)
       commandlist.push_back(Command<T>(compute));
     else

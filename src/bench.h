@@ -1,5 +1,5 @@
-template <typename T>
-void measure(size_t count, int warmup, int numiter, ExaComm::Comm<T> &comm) {
+template <typename T, typename Comm>
+void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
   int myid;
   int numproc;
@@ -78,8 +78,8 @@ void measure(size_t count, int warmup, int numiter, ExaComm::Comm<T> &comm) {
   }
 }
 
-template <typename T>
-void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, ExaComm::Comm<T> &comm) {
+template <typename T, typename Comm>
+void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, Comm &comm) {
 
   int myid;
   int numproc;
@@ -113,6 +113,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int pattern, ExaComm::Co
   hipDeviceSynchronize();
 #endif
   memset(recvbuf, -1, count * numproc * sizeof(T));
+  MPI_Barrier(MPI_COMM_WORLD);
 
   comm.run();
 

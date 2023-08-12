@@ -149,23 +149,23 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
-        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
-        /*// SCATTER + ALL-GATHER
+        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        // SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reduce :
-        coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
-        /*// REDUCE-SCATTER + GATHER
+        // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
+        // REDUCE-SCATTER + GATHER
 	for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
-            coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);*/
+            coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, ROOT);
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -181,14 +181,14 @@ int main(int argc, char *argv[])
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       case allreduce :
-        for(int recver = 0; recver < numproc; recver++)
-           coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
-        /*// REDUCE-SCATTER + ALL-GATHER
+        // for(int recver = 0; recver < numproc; recver++)
+        //   coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, recver);
+        // REDUCE-SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       default:
         if(myid == ROOT)
@@ -209,8 +209,9 @@ int main(int argc, char *argv[])
     coll.measure(warmup, numiter);
     // coll.report();
 
-    ExaComm::measure(count * numproc, warmup, numiter, coll);
-    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
+    ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
+    for(int iter = 0; iter < numiter; iter++)
+      ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
   }
 
 // DEALLOCATE
