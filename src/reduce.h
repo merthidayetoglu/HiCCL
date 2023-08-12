@@ -146,11 +146,15 @@
               compute_found = true;
             }
 	    else {
-              if(level == numlevel - 1 || sendids[0] != recvid)
+              if(sendids[0] != recvid)
                 comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
               else {
-                outputbuf = reduce.sendbuf;
-                outputoffset = reduce.sendoffset;
+                if(level == numlevel - 1)
+                  comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
+                else {
+                  outputbuf = reduce.sendbuf;
+                  outputoffset = reduce.sendoffset;
+                }
               }
             }
             sendids_new.push_back(recvid);
