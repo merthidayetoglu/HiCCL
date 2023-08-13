@@ -128,8 +128,10 @@
                 if(sendid != recvid) {
                   T *recvbuf;
                   if(myid == recvid) {
-                    if(numrecvbuf < recvbuf_ptr.size())
+                    if(numrecvbuf < recvbuf_ptr.size()) {
                       recvbuf = recvbuf_ptr[numrecvbuf]; // recycle memory
+                      recycle += reduce.count;
+                    }
                     else {
                       // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d recv malloc %zu\n", myid, reduce.count * sizeof(T));
 #ifdef PORT_CUDA

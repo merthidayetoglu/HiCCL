@@ -131,15 +131,19 @@ template <typename T>
                   break;
                 }
               }
-              if(!found && (myid == recvid)) {
+              if(myid == recvid) {
+                if(found)
+                  reuse += bcast.count;
+                else {
 #ifdef PORT_CUDA
-                cudaMalloc(&recvbuf, bcast.count * sizeof(T));
+                  cudaMalloc(&recvbuf, bcast.count * sizeof(T));
 #elif defined PORT_HIP
-                hipMalloc(&recvbuf, bcast.count * sizeof(T));
+                  hipMalloc(&recvbuf, bcast.count * sizeof(T));
 #endif
-                buffsize += bcast.count;
-                recvoffset = 0;
-                printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
+                  buffsize += bcast.count;
+                  recvoffset = 0;
+                  printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
+                }
               }
               comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
               if(recvids.size())

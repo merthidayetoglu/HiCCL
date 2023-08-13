@@ -25,6 +25,8 @@ namespace ExaComm {
   int printid;
   FILE *pFile;
   size_t buffsize = 0;
+  size_t recycle = 0;
+  size_t reuse = 0;
 
 #include "src/compute.h"
 
@@ -212,10 +214,14 @@ namespace ExaComm {
       // REPORT MEMORY
       {
         std::vector<size_t> buffsize_all(numproc);
+        std::vector<size_t> recycle_all(numproc);
+        std::vector<size_t> reuse_all(numproc);
         MPI_Allgather(&buffsize, sizeof(size_t), MPI_BYTE, buffsize_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
+        MPI_Allgather(&recycle, sizeof(size_t), MPI_BYTE, recycle_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
+        MPI_Allgather(&reuse, sizeof(size_t), MPI_BYTE, reuse_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
         if(printid == ROOT) {
           for(int p = 0; p < numproc; p++)
-            printf("ExaComm Memory [%d]: %zu bytes (%.2f GB)\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9);
+            printf("ExaComm Memory [%d]: %zu bytes (%.2f GB) - %.2f GB reused - %.2f GB recycled\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9, reuse_all[p] * sizeof(T) / 1.e9, recycle_all[p] * sizeof(T) / 1.e9);
           printf("command_batch size %zu: ", command_batch.size());
           for(int i = 0; i < command_batch.size(); i++)
             printf("%zu ", command_batch[i].size());
