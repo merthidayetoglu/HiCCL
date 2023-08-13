@@ -181,7 +181,8 @@ namespace ExaComm {
             }
             else {
               // HIERARCHICAL REDUCTION TREE
-              ExaComm::reduce_tree(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], numlevel - 1, command_batch[batch]);
+              std::vector<T*> recvbuff; // for memory recycling
+              ExaComm::reduce_tree(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], numlevel - 1, command_batch[batch], recvbuff, 0);
             }
         }
         // INIT BROADCAST
@@ -214,7 +215,7 @@ namespace ExaComm {
         MPI_Allgather(&buffsize, sizeof(size_t), MPI_BYTE, buffsize_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
         if(printid == ROOT) {
           for(int p = 0; p < numproc; p++)
-            printf("ExaComm Memory [%d]: %zu bytes\n", p, buffsize_all[p] * sizeof(T));
+            printf("ExaComm Memory [%d]: %zu bytes (%.2f GB)\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9);
           printf("command_batch size %zu: ", command_batch.size());
           for(int i = 0; i < command_batch.size(); i++)
             printf("%zu ", command_batch[i].size());

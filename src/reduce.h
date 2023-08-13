@@ -50,7 +50,7 @@
   };
 
   template <typename T>
-  void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<Command<T>> &commandlist) {
+  void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<Command<T>> &commandlist, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
 
     int myid;
     int numproc;
@@ -80,8 +80,8 @@
     if(printid == ROOT) {
       printf("level %d groupsize %d numgroup %d\n", level, groupsize[level], numgroup);
     }
-    for(auto &reduce : reducelist)
-      reduce.report(ROOT);
+    // for(auto &reduce : reducelist)
+    //  reduce.report(ROOT);
 
     {
       for(auto reduce : reducelist) {
@@ -110,6 +110,7 @@
                 outputoffset = reduce.recvoffset;
 	      }
 	      else {
+                // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d send malloc %zu\n", myid, reduce.count * sizeof(T));
 #ifdef PORT_CUDA
                 cudaMalloc(&outputbuf, reduce.count * sizeof(T));
 #elif defined PORT_HIP
@@ -127,14 +128,21 @@
                 if(sendid != recvid) {
                   T *recvbuf;
                   if(myid == recvid) {
+                    if(numrecvbuf < recvbuf_ptr.size())
+                      recvbuf = recvbuf_ptr[numrecvbuf]; // recycle memory
+                    else {
+                      // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d recv malloc %zu\n", myid, reduce.count * sizeof(T));
 #ifdef PORT_CUDA
-                    cudaMalloc(&recvbuf, reduce.count * sizeof(T));
+                      cudaMalloc(&recvbuf, reduce.count * sizeof(T));
 #elif defined PORT_HIP
-                    hipMalloc(&recvbuf, reduce.count * sizeof(T));
+                      hipMalloc(&recvbuf, reduce.count * sizeof(T));
 #else
-                    recvbuf = new T[reduce.count];
+                      recvbuf = new T[reduce.count];
 #endif
-                    buffsize += reduce.count;
+                      recvbuf_ptr.push_back(recvbuf);
+                      buffsize += reduce.count;
+                    }
+                    numrecvbuf++;
                   }
                   comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
                   inputbuf.push_back(recvbuf);
@@ -179,7 +187,7 @@
       commandlist.push_back(Command<T>(compute));
     else
       delete compute;
-    reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist);
+    reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist, recvbuf_ptr, 0);
   }
 
   template <typename T>
