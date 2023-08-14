@@ -178,7 +178,7 @@ namespace ExaComm {
           ExaComm::batch(reducelist, numbatch, reduce_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++)
-            if(groupsize[0] < numlevel) {
+            if(groupsize[0] < numproc) {
               // HIERARCHICAL REDUCTION RING
             }
             else {
@@ -196,8 +196,9 @@ namespace ExaComm {
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++)
-            if(groupsize[0] < numlevel) {
+            if(groupsize[0] < numproc) {
               // HIERARCHICAL BROADCAST RING
+              ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], command_batch[batch]);
             }
             else {
               // HIERARCHICAL BROADCAST TREE
