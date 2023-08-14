@@ -165,10 +165,11 @@ template <typename T>
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
 
-    std::vector<BCAST<T>> bcastlist_intra;
     std::vector<BCAST<T>> bcastlist_extra;
+    std::vector<BCAST<T>> bcastlist_intra;
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
+    bool commfound = false;
 
     for(auto &bcast : bcastlist) {
       int sendnode = bcast.sendid / groupsize[0];
@@ -192,15 +193,16 @@ template <typename T>
         bool found = false;
         for(auto it = recvids_extra.begin(); it != recvids_extra.end(); ++it) {
           if(*it == recvid)
-            recvbuf = bcast.recvbuf;
-            recvoffset = bcast.recvoffset;
             found = true;
             recvids_extra.erase(it);
             break;
           }
 	if(myid == recvid) {
-          if(found)
+          if(found) {
+            recvbuf = bcast.recvbuf;
+            recvoffset = bcast.recvoffset;
             reuse += bcast.count;
+          }
           else {
 #ifdef PORT_CUDA
             cudaMalloc(&recvbuf, bcast.count * sizeof(T));
@@ -214,21 +216,25 @@ template <typename T>
           }
         }
         comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf, recvoffset, bcast.count, bcast.sendid, recvid);
+        commfound = true;
         if(recvids_extra.size())
           bcastlist_extra.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids_extra));
       }
     }
-    if(comm_temp->isempty())
-      delete comm_temp;
-    else
+    if(commfound)
       commandlist.push_back(Command<T>(comm_temp));
+    else
+      delete comm_temp;
+
+    // EXTRA COMMUNICATION
+    if(bcastlist_extra.size())
+      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, commandlist);
+    // USE H-TREE IN INTRA-NODE COMMUNICATION
     if(bcastlist_intra.size()) {
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
       bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, 2, commandlist);
     }
-    if(bcastlist_extra.size())
-      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, commandlist);
   }
 
   template <typename T>

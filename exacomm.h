@@ -199,6 +199,10 @@ namespace ExaComm {
             if(groupsize[0] < numproc) {
               // HIERARCHICAL BROADCAST RING
               ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], command_batch[batch]);
+              //std::vector<BCAST<T>> bcast_intra;
+              //ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
+              //groupsize[0] = numproc;
+              //ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_intra, 2, command_batch[batch]);
             }
             else {
               // HIERARCHICAL BROADCAST TREE
