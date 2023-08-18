@@ -158,7 +158,7 @@ template <typename T>
   }
 
   template<typename T>
-  void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> bcastlist, std::list<Command<T>> &commandlist) {
+   void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
@@ -191,12 +191,12 @@ template <typename T>
         size_t recvoffset;
         int recvid = ((sendnode + 1) % (numproc / groupsize[0])) * groupsize[0] + bcast.sendid % groupsize[0];
         bool found = false;
-        for(auto it = recvids_extra.begin(); it != recvids_extra.end(); ++it) {
+        /*for(auto it = recvids_extra.begin(); it != recvids_extra.end(); ++it) {
           if(*it == recvid)
             found = true;
             recvids_extra.erase(it);
             break;
-          }
+          }*/
 	if(myid == recvid) {
           if(found) {
             recvbuf = bcast.recvbuf;
