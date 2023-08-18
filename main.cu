@@ -149,13 +149,13 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
-        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        for(int recver = 0; recver < numproc; recver++)
+        /*for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
         break;
       case reduce :
         // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
@@ -197,8 +197,8 @@ int main(int argc, char *argv[])
 
     // MACHINE DESCRIPTION
     int numlevel = 2;
-    int groupsize[5] = {numproc, 4, 1, 1, 2};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
+    int groupsize[5] = {4, 4, 4, 1, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch, pipeoffset);
@@ -211,6 +211,8 @@ int main(int argc, char *argv[])
 
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
+
+    coll.time();
   }
 
 // DEALLOCATE

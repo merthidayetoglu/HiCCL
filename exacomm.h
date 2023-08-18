@@ -244,20 +244,24 @@ namespace ExaComm {
 
       bool finished = false;
       while(!finished) {
+        MPI_Barrier(comm_mpi);
         finished = true;
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->start();
           }
+        MPI_Barrier(comm_mpi);
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->wait();
           }
+        MPI_Barrier(comm_mpi);
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             finished = false;
             commandptr[i]++;
           }
+        // MPI_Allreduce(MPI_IN_PLACE, &finished, 1, MPI_C_BOOL, MPI_LOR, comm_mpi);
       }
     }
 
@@ -286,6 +290,73 @@ namespace ExaComm {
         it->report();
         counter++;
       }
+    }
+
+    void time() {
+      if(printid == ROOT) {
+        printf("command_batch size %zu\n", command_batch.size());
+        printf("commandlist size %zu\n", command_batch[0].size());
+      }
+      char filename[1024];
+      sprintf(filename, "output.%d", printid);
+      FILE *output = fopen(filename, "w");
+
+      using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+      std::vector<Iter> commandptr(command_batch.size());
+      for(int i = 0; i < command_batch.size(); i++)
+        commandptr[i] = command_batch[i].begin();
+
+      int command = 0;
+      bool finished = false;
+      double totalstarttime = 0;
+      double totalwaittime = 0;
+      MPI_Barrier(comm_mpi);
+      double totaltime = MPI_Wtime();
+      while(!finished) {
+        finished = true;
+        {
+          MPI_Barrier(comm_mpi);
+          double time = MPI_Wtime();
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end()) {
+              commandptr[i]->start();
+            }
+          MPI_Barrier(comm_mpi);
+          time = MPI_Wtime() - time;
+          if(printid == ROOT)
+            printf("command %d start time: %e\n", command, time);
+          totalstarttime += time;
+        }
+        {
+          MPI_Barrier(comm_mpi);
+          double time = MPI_Wtime();
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end()) {
+              commandptr[i]->wait();
+            }
+          MPI_Barrier(comm_mpi);
+          time = MPI_Wtime() - time;
+          if(printid == ROOT)
+            printf("command %d wait time: %e\n", command, time);
+          totalwaittime += time;
+        }
+        for(int i = 0; i < command_batch.size(); i++)
+          if(commandptr[i] != command_batch[i].end()) {
+            finished = false;
+            commandptr[i]++;
+          }
+        MPI_Allreduce(MPI_IN_PLACE, &finished, 1, MPI_C_BOOL, MPI_LOR, comm_mpi);
+        command++;
+      }
+      MPI_Barrier(comm_mpi);
+      totaltime = MPI_Wtime() - totaltime;
+      if(printid == ROOT) {
+        fprintf(output, "total time %e\n", totaltime);
+        printf("other time: %e\n", totaltime - totalstarttime - totalwaittime); 
+      }
+
+
+      fclose(output);
     }
   };
 
