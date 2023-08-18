@@ -313,6 +313,8 @@ namespace ExaComm {
       MPI_Barrier(comm_mpi);
       double totaltime = MPI_Wtime();
       while(!finished) {
+        double starttime;
+        double waittime;
         finished = true;
         {
           MPI_Barrier(comm_mpi);
@@ -322,10 +324,7 @@ namespace ExaComm {
               commandptr[i]->start();
             }
           MPI_Barrier(comm_mpi);
-          time = MPI_Wtime() - time;
-          if(printid == ROOT)
-            printf("command %d start time: %e\n", command, time);
-          totalstarttime += time;
+          starttime = MPI_Wtime() - time;
         }
         {
           MPI_Barrier(comm_mpi);
@@ -335,11 +334,12 @@ namespace ExaComm {
               commandptr[i]->wait();
             }
           MPI_Barrier(comm_mpi);
-          time = MPI_Wtime() - time;
-          if(printid == ROOT)
-            printf("command %d wait time: %e\n", command, time);
-          totalwaittime += time;
+          waittime = MPI_Wtime() - time;
         }
+        if(printid == ROOT)
+          printf("command %d star: %e wait: %e\n", command, starttime, waittime);
+        totalstarttime += starttime;
+          totalwaittime += waittime;
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             finished = false;
@@ -351,11 +351,9 @@ namespace ExaComm {
       MPI_Barrier(comm_mpi);
       totaltime = MPI_Wtime() - totaltime;
       if(printid == ROOT) {
-        fprintf(output, "total time %e\n", totaltime);
-        printf("other time: %e\n", totaltime - totalstarttime - totalwaittime); 
+        printf("start %e wait %e other %e\n", totalstarttime, totalwaittime, totaltime - totalstarttime - totalwaittime); 
+        printf("total time %e\n", totaltime);
       }
-
-
       fclose(output);
     }
   };
