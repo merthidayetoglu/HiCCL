@@ -197,15 +197,16 @@ namespace ExaComm {
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++)
             if(groupsize[0] < numproc) {
-              // HIERARCHICAL BROADCAST RING
-              ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], command_batch[batch]);
-              // std::vector<BCAST<T>> bcast_intra;
-              // ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
-              // groupsize[0] = numproc;
-              // ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_intra, 2, command_batch[batch]);
+              // HIERARCHICAL RING
+              ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
+              std::vector<BCAST<T>> bcast_intra;
+              ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
+	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+	      groupsize_temp[0] = numproc;
+              ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, command_batch[batch]);
             }
             else {
-              // HIERARCHICAL BROADCAST TREE
+              // HIERARCHICAL TREE
               ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], 1, command_batch[batch]);
             }
         }
@@ -315,7 +316,6 @@ namespace ExaComm {
       while(!finished) {
         double starttime;
         double waittime;
-        finished = true;
         {
           MPI_Barrier(comm_mpi);
           double time = MPI_Wtime();
@@ -336,16 +336,19 @@ namespace ExaComm {
           MPI_Barrier(comm_mpi);
           waittime = MPI_Wtime() - time;
         }
-        if(printid == ROOT)
-          printf("command %d start: %e wait: %e\n", command, starttime, waittime);
-        totalstarttime += starttime;
-          totalwaittime += waittime;
+        finished = true;
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
             finished = false;
             commandptr[i]++;
           }
         MPI_Allreduce(MPI_IN_PLACE, &finished, 1, MPI_C_BOOL, MPI_LOR, comm_mpi);
+        if(finished)
+          break;
+        if(printid == ROOT)
+          printf("command %d start: %e wait: %e\n", command, starttime, waittime);
+        totalstarttime += starttime;
+        totalwaittime += waittime;
         command++;
       }
       MPI_Barrier(comm_mpi);
