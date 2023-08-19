@@ -192,7 +192,7 @@ template <typename T>
           recvids_extra.push_back(recvid);
       }
       if(printid == ROOT)
-        printf("recvids_intra: %d recvids_extra: %d\n", recvids_intra.size(), recvids_extra.size());
+        printf("recvids_intra: %zu recvids_extra: %zu\n", recvids_intra.size(), recvids_extra.size());
       if(recvids_intra.size())
         bcastlist_intra.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));
       if(recvids_extra.size()) {

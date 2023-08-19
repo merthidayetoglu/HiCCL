@@ -201,7 +201,7 @@ namespace ExaComm {
           for(int batch = 0; batch < numbatch; batch++)
             if(groupsize[0] < numproc) {
               // HIERARCHICAL RING
-              // ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
+              ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
               std::vector<BCAST<T>> bcast_intra;
               ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
 	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
