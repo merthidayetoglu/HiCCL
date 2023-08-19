@@ -93,6 +93,7 @@ namespace ExaComm {
     std::vector<std::vector<BCAST<T>>> bcast_epoch;
     std::vector<std::vector<REDUCE<T>>> reduce_epoch;
     int numepoch = 0;
+    int numstripe = 1;
 
     // MACHINE
     std::vector<int> numlevel;
@@ -108,6 +109,10 @@ namespace ExaComm {
       bcast_epoch.push_back(std::vector<BCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
       numepoch++;
+    }
+
+    void stripe(int numstripe) {
+      this->numstripe = numstripe;
     }
 
     Comm(const MPI_Comm &comm_mpi_temp) : comm_mpi(comm_mpi_temp) {
@@ -198,10 +203,10 @@ namespace ExaComm {
           std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
-          for(int batch = 0; batch < numbatch; batch++)
+          for(int batch = 0; batch < numbatch; batch++) {
+            ExaComm::stripe(comm_mpi, numstripe, lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
             if(groupsize[0] < numproc) {
               // HIERARCHICAL RING
-              ExaComm::stripe(comm_mpi, groupsize[0], lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
               std::vector<BCAST<T>> bcast_intra;
               ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
 	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
@@ -212,6 +217,7 @@ namespace ExaComm {
               // HIERARCHICAL TREE
               ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], 1, command_batch[batch]);
             }
+          }
         }
       }
       // INITIALIZE BATCH PIPELINE WITH DUMMY COMMANDS
@@ -301,9 +307,6 @@ namespace ExaComm {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
       }
-      char filename[1024];
-      sprintf(filename, "output.%d", printid);
-      FILE *output = fopen(filename, "w");
 
       using Iter = typename std::list<ExaComm::Command<T>>::iterator;
       std::vector<Iter> commandptr(command_batch.size());
@@ -360,7 +363,6 @@ namespace ExaComm {
         printf("start %e wait %e other %e\n", totalstarttime, totalwaittime, totaltime - totalstarttime - totalwaittime); 
         printf("total time %e\n", totaltime);
       }
-      fclose(output);
     }
   };
 

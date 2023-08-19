@@ -29,7 +29,7 @@
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
+#define PORT_CUDA
 // #define PORT_HIP
 // #define PORT_SYCL
 
@@ -196,9 +196,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 2;
-    int groupsize[5] = {4, 4, 4, 1, 2};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int numlevel = 4;
+    int groupsize[5] = {8, 8, 4, 2, 2};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    coll.stripe(8);
 
     double time = MPI_Wtime();
     coll.init(numlevel, groupsize, library, numbatch, pipeoffset);
