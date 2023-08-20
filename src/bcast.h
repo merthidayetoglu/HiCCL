@@ -247,8 +247,9 @@ template <typename T>
     }*/
   }
 
-  template <typename T>
-  void stripe(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_intra, std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
+  template <typename T, typename P>
+  void stripe(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_intra, std::vector<BCAST<T>> &bcastlist, std::vector<P> &split_list, std::list<Command<T>> &commandlist) {
+  // void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BCAST<T>> &bcastlist, std::list<P> &split_list) {
 
     int myid;
     int numproc;
@@ -283,11 +284,13 @@ template <typename T>
     for(auto &bcast : bcastlist_intra)
       bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
 
+    // SPLIT COMMUNICATOR
+    // CommBench::Comm<T> *split = new CommBench::Comm<T>(comm_mpi, lib_intra);
+   // bool commfound = false;
+
     // ADD INTER-NODE BROADCAST BY STRIPING
     if(bcastlist_inter.size())
     {
-      // SPLIT COMMUNICATOR
-      CommBench::Comm<T> *split = new CommBench::Comm<T>(comm_mpi, lib_intra);
       for(auto &bcast : bcastlist_inter) {
         int sendgroup = bcast.sendid / nodesize;
         size_t splitoffset = 0;
@@ -307,7 +310,9 @@ template <typename T>
 #endif
                 buffsize += splitcount;
               }
-              split->add(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver);
+              // split->add(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver);
+              // commfound = true;
+              split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
               bcastlist.push_back(BCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
             }
             else {
@@ -321,8 +326,11 @@ template <typename T>
             break;
         }
       }
-      commandlist.push_back(Command<T>(split));
     }
+    //if(commfound)
+    //  commandlist.push_back(Command<T>(split));
+    //else
+    //  delete split;
   }
 
   template <typename T>

@@ -70,8 +70,8 @@
     
     CommBench::Comm<T> *comm = new CommBench::Comm<T>(comm_mpi, lib[level]);
     ExaComm::Compute<T> *compute = new ExaComm::Compute<T>(comm_mpi);
-    commandlist.push_back(Command<T>(comm));
     bool compute_found = false;
+    bool commfound = false;
 
     std::vector<REDUCE<T>> reducelist_new;
 
@@ -147,6 +147,7 @@
                     numrecvbuf++;
                   }
                   comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
+                  commfound = true;
                   inputbuf.push_back(recvbuf);
                 }
                 else
@@ -156,11 +157,15 @@
               compute_found = true;
             }
 	    else {
-              if(sendids[0] != recvid)
+              if(sendids[0] != recvid) {
                 comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
+                commfound = true;
+              }
               else {
-                if(level == numlevel - 1)
+                if(level == numlevel - 1) {
                   comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
+                  commfound = true;
+                }
                 else {
                   outputbuf = reduce.sendbuf;
                   outputoffset = reduce.sendoffset;
@@ -189,6 +194,10 @@
       commandlist.push_back(Command<T>(compute));
     else
       delete compute;
+    if(commfound)
+      commandlist.push_back(Command<T>(comm));
+    else
+      delete comm;
     reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist, recvbuf_ptr, 0);
   }
 

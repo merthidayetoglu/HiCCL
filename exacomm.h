@@ -80,9 +80,8 @@ namespace ExaComm {
     }
   };
 
-#define FUSING
-#include "src/bcast.h"
 #include "src/reduce.h"
+#include "src/bcast.h"
 
   template <typename T>
   class Comm {
@@ -204,7 +203,13 @@ namespace ExaComm {
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
-            ExaComm::stripe(comm_mpi, numstripe, lib[numlevel - 1], bcast_batch[batch], command_batch[batch]);
+            std::vector<REDUCE<T>> split_list;
+	    ExaComm::stripe(comm_mpi, numstripe, lib[numlevel - 1], bcast_batch[batch], split_list, command_batch[batch]);
+            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+            groupsize_temp[0] = numproc;
+            std::vector<T*> recvbuff; // for memory recycling
+            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
+            // ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, 1, command_batch[batch]);
             if(groupsize[0] < numproc) {
               // HIERARCHICAL RING
               std::vector<BCAST<T>> bcast_intra;
