@@ -204,6 +204,7 @@ namespace ExaComm {
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
             std::vector<REDUCE<T>> split_list;
+            // std::vector<BCAST<T>> split_list;
 	    ExaComm::stripe(comm_mpi, numstripe, lib[numlevel - 1], bcast_batch[batch], split_list, command_batch[batch]);
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
