@@ -48,6 +48,13 @@ void print_args();
   // complex<double> x, y, z;
 };*/
 
+#ifdef PORT_SYCL
+sycl::queue q(sycl::gpu_selector_v);
+#endif
+
+template <typename T>
+void allocate(T* &, size_t);
+
 int main(int argc, char *argv[])
 {
   // INITIALIZE
@@ -108,20 +115,39 @@ int main(int argc, char *argv[])
   // ALLOCATE
   Type *sendbuf_d;
   Type *recvbuf_d;
-#ifdef PORT_CUDA
-  cudaMalloc(&sendbuf_d, count * numproc * sizeof(Type));
-  cudaMalloc(&recvbuf_d, count * numproc * sizeof(Type));
-#elif defined PORT_HIP
-  hipMalloc(&sendbuf_d, count * numproc * sizeof(Type));
-  hipMalloc(&recvbuf_d, count * numproc * sizeof(Type));
-#elif defined PORT_SYCL
-  sycl::queue q(sycl::gpu_selector_v);
-  sendbuf_d = sycl::malloc_device<Type>(count * numproc, q);
-  recvbuf_d = sycl::malloc_device<Type>(count * numproc, q);
-#else
-  sendbuf_d = new Type[count * numproc];
-  recvbuf_d = new Type[count * numproc];
-#endif
+  allocate(sendbuf_d, count * numproc);
+  allocate(recvbuf_d, count * numproc);
+  /*switch (pattern) {
+    case scatter :
+      allocate(sendbuf_d, count * numproc);
+      allocate(recvbuf_d, count);
+      break;
+    case gather :
+      allocate(sendbuf_d, count);
+      allocate(recvbuf_d, count * numproc);
+      break;
+    case broadcast :
+    case reduce :
+      allocate(sendbuf_d, count);
+      allocate(recvbuf_d, count);
+      break;
+    case alltoall :
+      allocate(sendbuf_d, count * numproc);
+      allocate(recvbuf_d, count * numproc);
+      break;
+    case allgather :
+      allocate(sendbuf_d, count);
+      allocate(recvbuf_d, count * numproc);
+      break;
+    case reducescatter :
+      allocate(sendbuf_d, count * numproc);
+      allocate(recvbuf_d, count);
+      break;
+    case allreduce :
+      allocate(sendbuf_d, count);
+      allocate(recvbuf_d, count);
+      break;
+  }*/
 
   std::vector<int> proclist;
   for(int p = 0 ; p < numproc; p++)
@@ -133,9 +159,9 @@ int main(int argc, char *argv[])
         recvids[sender].push_back(recver);
   size_t count_part = count / numproc;
 
-
   // PATTERN DESRIPTION
   {
+
     ExaComm::printid = myid;
     ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
 
@@ -149,13 +175,13 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, p * count, count, p, ROOT);
         break;
       case broadcast :
-        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
+        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        /*for(int recver = 0; recver < numproc; recver++)
+        for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count_part, recvbuf_d, recver * count_part, count_part, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count_part, recvbuf_d, sender * count_part, count_part, sender, recvids[sender]);
         break;
       case reduce :
         // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count, proclist, ROOT);
@@ -196,13 +222,17 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 4;
-    int groupsize[5] = {8, 8, 4, 2, 2};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    coll.stripe(8);
+    int numlevel = 3;
+    int groupsize[5] = {4, 8, 4, 2, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    // coll.stripe(4);
 
     double time = MPI_Wtime();
+    MPI_Barrier(MPI_COMM_WORLD);
+
     coll.init(numlevel, groupsize, library, numbatch, pipeoffset);
+
+    MPI_Barrier(MPI_COMM_WORLD);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
@@ -236,4 +266,19 @@ int main(int argc, char *argv[])
 
   return 0;
 } // main()
+
+template <typename T>
+void allocate(T* &buffer, size_t count) {
+#ifdef PORT_CUDA
+    cudaMalloc(&buffer, count * sizeof(T));
+#elif defined PORT_HIP
+    hipMalloc(&buffer, count * sizeof(T));
+#elif defined PORT_SYCL
+    sycl::queue q(sycl::gpu_selector_v);
+    buffer_d = sycl::malloc_device<Type>(count * numproc, q);
+#else
+    sendbuf_d = new Type[count * numproc];
+    recvbuf_d = new Type[count * numproc];
+#endif
+}
 

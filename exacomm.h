@@ -86,7 +86,7 @@ namespace ExaComm {
   template <typename T>
   class Comm {
 
-    const MPI_Comm comm_mpi;
+    const MPI_Comm &comm_mpi = CommBench::comm_mpi;
 
     // PRIMITIVES
     std::vector<std::vector<BCAST<T>>> bcast_epoch;
@@ -114,7 +114,10 @@ namespace ExaComm {
       this->numstripe = numstripe;
     }
 
-    Comm(const MPI_Comm &comm_mpi_temp) : comm_mpi(comm_mpi_temp) {
+    Comm(const MPI_Comm &comm_mpi_temp) {
+    // Comm(const MPI_Comm &comm_mpi_temp) : comm_mpi(comm_mpi_temp) {
+      // INITIALIZE COMMBENCH
+      CommBench::Comm<T> comm(comm_mpi_temp, CommBench::NCCL);
       // DEFAULT EPOCH
       fence();
     }
