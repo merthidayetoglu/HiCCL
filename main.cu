@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 
     // MACHINE DESCRIPTION
     int numlevel = 4;
-    int groupsize[5] = {8, 16, 8, 4, 2};
+    int groupsize[5] = {numproc, 16, 8, 4, 2};
     CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
     // coll.stripe(8);
 
