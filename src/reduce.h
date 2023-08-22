@@ -263,17 +263,21 @@
           int recver = recvnode * nodesize + p;
           size_t splitcount = reduce.count / nodesize + (p < reduce.count % nodesize ? 1 : 0);
           if(splitcount) {
-            T *recvbuf_temp;
-            if(myid == recver) {
+            if(recver != reduce.recvid) {
+              T *recvbuf_temp;
+              if(myid == recver) {
 #ifdef PORT_CUDA
-              cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
+                cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
 #elif defined PORT_HIP
-              hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
+                hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
 #endif
-              buffsize += splitcount;
+                buffsize += splitcount;
+              }
+              reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));
+              merge_list.push_back(P(recvbuf_temp, 0, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
             }
-            reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));
-            merge_list.push_back(P(recvbuf_temp, 0, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
+            else
+              reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, reduce.sendids, recver));
             splitoffset += splitcount;
           }
           else

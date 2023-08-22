@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
- #include <nccl.h>
-// #include <rccl.h>
+// #include <nccl.h>
+ #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
- #define PORT_CUDA
-// #define PORT_HIP
+// #define PORT_CUDA
+ #define PORT_HIP
 // #define PORT_SYCL
 
 #include "exacomm.h"
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  int numbatch = atoi(argv[2]);
+  int pipedepth = atoi(argv[2]);
   int pipeoffset = atoi(argv[3]);
   size_t count = atol(argv[4]);
   int warmup = atoi(argv[5]);
@@ -95,11 +95,13 @@ int main(int argc, char *argv[])
       case reducescatter : printf("Reduce-Scatter\n"); break;
       case allreduce     : printf("All-Reduce\n");     break;
     }
-    printf("Number of batches: %d\n", numbatch);
+    printf("Pipeline depth: %d\n", pipedepth);
     printf("Pipeline offset: %d\n", pipeoffset);
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
+    printf("Sendbuffer count %ld ( %ld Bytes %.2f GB)\n", count * numproc, count * numproc * sizeof(Type), count * numproc * sizeof(Type) / 1.e9);
+    printf("Recvbuffer count %ld ( %ld Bytes %.2f GB)\n", count * numproc, count * numproc * sizeof(Type), count * numproc * sizeof(Type) / 1.e9);
     printf("\n");
   }
 
@@ -139,27 +141,25 @@ int main(int argc, char *argv[])
     switch (pattern) {
       case scatter :
         for(int recver = 0; recver < numproc; recver++)
-          // coll.add_bcast(sendbuf_d, p * count, recvbuf_d, 0, count, ROOT, recver);
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, ROOT, recver);
         break;
       case gather :
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, ROOT);
-          // coll.add_reduce(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, ROOT);
         break;
       case broadcast :
-        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
+        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        for(int recver = 0; recver < numproc; recver++)
+        /*for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
+          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);*/
         break;
       case reduce :
         coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
         // REDUCE-SCATTER + GATHER
-	/* for(int recver = 0; recver < numproc; recver++)
+	/*for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
@@ -195,13 +195,13 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 2;
-    int hierarchy[5] = {numproc, 4, 8, 4, 2};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    // coll.stripe(4);
+    int numlevel = 4;
+    int hierarchy[5] = {numproc, 16, 8, 4, 2};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    coll.stripe(8);
 
     double time = MPI_Wtime();
-    coll.init(numlevel, hierarchy, library, numbatch, pipeoffset);
+    coll.init(numlevel, hierarchy, library, pipedepth, pipeoffset);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
