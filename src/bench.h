@@ -88,71 +88,40 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
 
   enum pattern {dummy, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
-  size_t sendcount;
-  size_t recvcount;
-  switch (patternid) {
-    case scatter :
-      sendcount = count * numproc;
-      recvcount = count;
-      break;
-    case gather :
-      sendcount = count;
-      recvcount = count * numproc;
-      break;
-    case broadcast :
-    case reduce :
-      sendcount = count;
-      recvcount = count;
-      break;
-    case alltoall :
-      sendcount = count * numproc;
-      recvcount = count * numproc;
-      break;
-    case allgather :
-      sendcount = count;
-      recvcount = count * numproc;
-      break;
-    case reducescatter :
-      sendcount = count * numproc;
-      recvcount = count;
-      break;
-    case allreduce :
-      sendcount = count * numproc;
-      recvcount = count * numproc;
-      break;
-  }
-
   T *recvbuf;
   T *sendbuf;
 #ifdef PORT_CUDA
-  cudaMallocHost(&sendbuf, sendcount * sizeof(T));
-  cudaMallocHost(&recvbuf, recvcount * sizeof(T));
+  cudaMallocHost(&sendbuf, count * numproc * sizeof(T));
+  cudaMallocHost(&recvbuf, count * numproc * sizeof(T));
+  cudaMemset(recvbuf_d, -1, count * numproc * sizeof(T));
 #elif defined PORT_HIP
-  hipHostMalloc(&sendbuf, sendcount * sizeof(T));
-  hipHostMalloc(&recvbuf, recvcount * sizeof(T));
-#endif
-  for(size_t i = 0; i < sendcount; i++)
-    sendbuf[i] = i;
-#ifdef PORT_CUDA
-  cudaMemcpy(sendbuf_d, sendbuf, sendcount * sizeof(T), cudaMemcpyHostToDevice);
-  cudaMemset(recvbuf_d, -1, recvcount * sizeof(T));
-  cudaStream_t stream;
-  cudaStreamCreate(&stream);
-#elif defined PORT_HIP
-  hipMemcpy(sendbuf_d, sendbuf, sendcount * sizeof(T), hipMemcpyHostToDevice);
-  hipMemset(recvbuf_d, -1, recvcount * sizeof(T));
-  hipStream_t stream;
-  hipStreamCreate(&stream);
+  hipHostMalloc(&sendbuf, count * numproc * sizeof(T));
+  hipHostMalloc(&recvbuf, count * numproc * sizeof(T));
+  hipMemset(recvbuf_d, -1, count * numproc * sizeof(T));
 #endif
   MPI_Barrier(MPI_COMM_WORLD);
+  #pragma omp parallel for
+  for(size_t i = 0; i < count * numproc; i++)
+    sendbuf[i] = i;
+#ifdef PORT_CUDA
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  cudaMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), cudaMemcpyHostToDevice, stream);
+  cudaStreamSynchronize(stream);
+#elif defined PORT_HIP
+  hipStream_t stream;
+  hipStreamCreate(&stream);
+  hipMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), hipMemcpyHostToDevice, stream);
+  hipStreamSynchronize(stream);
+#endif
 
   comm.run();
 
 #ifdef PORT_CUDA
-  cudaMemcpyAsync(recvbuf, recvbuf_d, recvcount * sizeof(T), cudaMemcpyDeviceToHost, stream);
+  cudaMemcpyAsync(recvbuf, recvbuf_d, count * numproc * sizeof(T), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 #elif defined PORT_HIP
-  hipMemcpyAsync(recvbuf, recvbuf_d, recvcount * sizeof(T), hipMemcpyDeviceToHost, stream);
+  hipMemcpyAsync(recvbuf, recvbuf_d, count * numproc * sizeof(T), hipMemcpyDeviceToHost, stream);
   hipStreamSynchronize(stream);
 #endif
 
@@ -175,7 +144,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
           }
       break;
     case broadcast: if(myid == ROOT) printf("VERIFY BCAST ROOT = %d: ", ROOT);
-      for(size_t i = 0; i < count; i++) {
+      for(size_t i = 0; i < count * numproc; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != i)
           pass = false;
@@ -183,7 +152,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
       break;
     case reduce: if(myid == ROOT) printf("VERIFY REDUCE ROOT = %d: ", ROOT);
       if(myid == ROOT)
-        for(size_t i = 0; i < count; i++) {
+        for(size_t i = 0; i < count * numproc; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
           if(recvbuf[i] != i * numproc)
             pass = false;
