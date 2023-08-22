@@ -273,6 +273,7 @@
               buffsize += splitcount;
             }
             reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));
+            merge_list.push_back(P(recvbuf_temp, 0, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
             splitoffset += splitcount;
           }
           else

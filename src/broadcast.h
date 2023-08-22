@@ -1,6 +1,6 @@
 
   template <typename T>
-  struct BCAST {
+  struct BROADCAST {
     public:
     T* const sendbuf;
     const size_t sendoffset;
@@ -10,9 +10,9 @@
     const int sendid;
     std::vector<int> recvids;
 
-    BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids)
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids)
     : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) {}
-    BCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
     : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) { recvids.push_back(recvid); }
 
     void report(int id) {
@@ -37,7 +37,7 @@
           MPI_Recv(recvbuf_recvid.data() + recv, sizeof(T*), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
           MPI_Recv(recvoffset_recvid.data() + recv, sizeof(size_t), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
-        printf("BCAST report: count %lu\n", count);
+        printf("BROADCAST report: count %lu\n", count);
         char text[1000];
         int n = sprintf(text, "sendid %d sendbuf %p sendoffset %lu -> ", sendid, sendbuf_sendid, sendoffset_sendid);
         printf("%s", text);
@@ -52,7 +52,7 @@
   };
 
   template <typename T>
-  void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> bcastlist, int level, std::list<Command<T>> &commandlist) {
+  void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> bcastlist, int level, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
@@ -71,7 +71,7 @@
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[level-1]);
     bool commfound = false;
 
-    std::vector<BCAST<T>> bcastlist_new;
+    std::vector<BROADCAST<T>> bcastlist_new;
 
     //  SELF COMMUNICATION
     if(level == numlevel) {
@@ -100,7 +100,7 @@
                   recvids.push_back(recvid);
               }
               if(recvids.size())
-                bcastlist_new.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids));
+                bcastlist_new.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids));
             }
           }
         }
@@ -151,7 +151,7 @@
                 comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
                 commfound = true;
                 if(recvids.size())
-                  bcastlist_new.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids));
+                  bcastlist_new.push_back(BROADCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids));
               }
             }
           }
@@ -166,16 +166,16 @@
   }
 
   template<typename T>
-  // void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
-  void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BCAST<T>> &bcastlist, std::vector<BCAST<T>> &bcastlist_intra, std::list<Command<T>> &commandlist) {
+  // void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
+  void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
 
-    std::vector<BCAST<T>> bcastlist_extra;
-    // std::vector<BCAST<T>> bcastlist_intra;
+    std::vector<BROADCAST<T>> bcastlist_extra;
+    // std::vector<BROADCAST<T>> bcastlist_intra;
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib);
     bool commfound = false;
@@ -194,7 +194,7 @@
       if(printid == ROOT)
         printf("recvids_intra: %zu recvids_extra: %zu\n", recvids_intra.size(), recvids_extra.size());
       if(recvids_intra.size())
-        bcastlist_intra.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));
+        bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));
       if(recvids_extra.size()) {
         T *recvbuf;
         size_t recvoffset;
@@ -227,7 +227,7 @@
         comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf, recvoffset, bcast.count, bcast.sendid, recvid);
         commfound = true;
         if(recvids_extra.size())
-          bcastlist_extra.push_back(BCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids_extra));
+          bcastlist_extra.push_back(BROADCAST<T>(recvbuf, recvoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, recvid, recvids_extra));
       }
     }
     if(commfound)
@@ -248,7 +248,7 @@
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BCAST<T>> &bcastlist, std::vector<P> &split_list) {
+  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
 
     int myid;
     int numproc;
@@ -256,8 +256,8 @@
     MPI_Comm_size(comm_mpi, &numproc);
 
     // SEPARATE INTRA AND INTER NODES
-    std::vector<BCAST<T>> bcastlist_intra;
-    std::vector<BCAST<T>> bcastlist_inter;
+    std::vector<BROADCAST<T>> bcastlist_intra;
+    std::vector<BROADCAST<T>> bcastlist_inter;
     for(auto &bcast : bcastlist) {
       int sendid = bcast.sendid;
       std::vector<int> recvid_intra;
@@ -268,20 +268,20 @@
         else
           recvid_inter.push_back(recvid);
       if(recvid_inter.size())
-        bcastlist_inter.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
+        bcastlist_inter.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
       else
-        bcastlist_intra.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
+        bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
     }
     if(printid == ROOT) {
       printf("broadcast striping groupsize: %d numgroups: %d\n", nodesize, numproc / nodesize);
       printf("number of original broadcasts: %zu\n", bcastlist.size());
       printf("number of intra-node broadcast: %zu number of inter-node broadcast: %zu\n", bcastlist_intra.size(), bcastlist_inter.size());
     }
-    // CLEAR BCASTLIST
+    // CLEAR BROADCASTLIST
     bcastlist.clear();
     // ADD INTRA-NODE BROADCAST DIRECTLY (IF ANY)
     for(auto &bcast : bcastlist_intra)
-      bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
+      bcastlist.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
 
     // ADD INTER-NODE BROADCAST BY STRIPING
     if(bcastlist_inter.size())
@@ -304,12 +304,12 @@
                 buffsize += splitcount;
               }
               split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
-              bcastlist.push_back(BCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
+              bcastlist.push_back(BROADCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
             }
             else {
               if(printid == ROOT)
                 printf("split * skip self\n");
-              bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + splitoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, bcast.sendid, bcast.recvids));
+              bcastlist.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset + splitoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, bcast.sendid, bcast.recvids));
             }
             splitoffset += splitcount;
           }
@@ -321,13 +321,13 @@
   }
 
   template <typename T>
-  void batch(std::vector<BCAST<T>> &bcastlist, int numbatch, std::vector<std::vector<BCAST<T>>> &bcast_batch) {
+  void batch(std::vector<BROADCAST<T>> &bcastlist, int numbatch, std::vector<std::vector<BROADCAST<T>>> &bcast_batch) {
     for(auto &bcast : bcastlist) {
       size_t batchoffset = 0;
       for(int batch = 0; batch < numbatch; batch++) {
         size_t batchsize = bcast.count / numbatch + (batch < bcast.count % numbatch ? 1 : 0);
         if(batchsize) {
-          bcast_batch[batch].push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + batchoffset, bcast.recvbuf, bcast.recvoffset + batchoffset, batchsize, bcast.sendid, bcast.recvids));
+          bcast_batch[batch].push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset + batchoffset, bcast.recvbuf, bcast.recvoffset + batchoffset, batchsize, bcast.sendid, bcast.recvids));
           batchoffset += batchsize;
         }
         else

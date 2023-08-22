@@ -81,7 +81,7 @@ namespace ExaComm {
   };
 
 #include "src/reduce.h"
-#include "src/bcast.h"
+#include "src/broadcast.h"
 
   template <typename T>
   class Comm {
@@ -89,7 +89,7 @@ namespace ExaComm {
     const MPI_Comm &comm_mpi = CommBench::comm_mpi;
 
     // PRIMITIVES
-    std::vector<std::vector<BCAST<T>>> bcast_epoch;
+    std::vector<std::vector<BROADCAST<T>>> bcast_epoch;
     std::vector<std::vector<REDUCE<T>>> reduce_epoch;
     int numepoch = 0;
     int numstripe = 1;
@@ -105,7 +105,7 @@ namespace ExaComm {
     public:
 
     void fence() {
-      bcast_epoch.push_back(std::vector<BCAST<T>>());
+      bcast_epoch.push_back(std::vector<BROADCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
       numepoch++;
     }
@@ -122,12 +122,12 @@ namespace ExaComm {
       fence();
     }
 
-    // ADD FUNCTIONS FOR BCAST AND REDUCE PRIMITIVES
+    // ADD FUNCTIONS FOR BROADCAST AND REDUCE PRIMITIVES
     void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      bcast_epoch[numepoch-1].push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+      bcast_epoch[numepoch-1].push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
     void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) {
-      bcast_epoch[numepoch-1].push_back(BCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
+      bcast_epoch[numepoch-1].push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
     }
     void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
       reduce_epoch[numepoch-1].push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
@@ -185,8 +185,9 @@ namespace ExaComm {
           ExaComm::batch(reducelist, numbatch, reduce_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
-            std::vector<REDUCE<T>> split_list;
-            ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], split_list);
+            // STRIPE REDUCTION
+            std::vector<BROADCAST<T>> merge_list;
+            ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], merge_list);
             /*if(groupsize[0] < numproc) {
               // HIERARCHICAL REDUCTION RING
             }
@@ -197,28 +198,32 @@ namespace ExaComm {
               std::vector<T*> recvbuff; // for memory recycling
               ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reduce_batch[batch], numlevel - 1, command_batch[batch], recvbuff, 0);
             // }
+            // COMPLETE STRIPING BY INTRA-NODE GATHER
+            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, command_batch[batch]);
 	  }
         }
         // INIT BROADCAST
-        std::vector<BCAST<T>> &bcastlist = bcast_epoch[epoch];
+        std::vector<BROADCAST<T>> &bcastlist = bcast_epoch[epoch];
         if(bcastlist.size())
         {
           // PARTITION INTO BATCHES
-          std::vector<std::vector<BCAST<T>>> bcast_batch(numbatch);
+          std::vector<std::vector<BROADCAST<T>>> bcast_batch(numbatch);
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
+            // STRIPE BROADCAST
             std::vector<REDUCE<T>> split_list;
-            //std::vector<BCAST<T>> split_list;
+            //std::vector<BROADCAST<T>> split_list;
 	    ExaComm::stripe(comm_mpi, numstripe, bcast_batch[batch], split_list);
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
+            // INITIALZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
             //ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, 1, command_batch[batch]);
             if(groupsize[0] < numproc) {
               // HIERARCHICAL RING
-              std::vector<BCAST<T>> bcast_intra;
+              std::vector<BROADCAST<T>> bcast_intra;
               ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
 	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
 	      groupsize_temp[0] = numproc;
