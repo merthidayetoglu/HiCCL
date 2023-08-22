@@ -99,7 +99,6 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   hipHostMalloc(&recvbuf, count * numproc * sizeof(T));
   hipMemset(recvbuf_d, -1, count * numproc * sizeof(T));
 #endif
-  MPI_Barrier(MPI_COMM_WORLD);
   #pragma omp parallel for
   for(size_t i = 0; i < count * numproc; i++)
     sendbuf[i] = i;
@@ -114,6 +113,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   hipMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), hipMemcpyHostToDevice, stream);
   hipStreamSynchronize(stream);
 #endif
+  MPI_Barrier(MPI_COMM_WORLD);
 
   comm.run();
 

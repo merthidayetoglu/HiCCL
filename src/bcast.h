@@ -1,5 +1,5 @@
 
-template <typename T>
+  template <typename T>
   struct BCAST {
     public:
     T* const sendbuf;
@@ -248,8 +248,7 @@ template <typename T>
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_intra, std::vector<BCAST<T>> &bcastlist, std::vector<P> &split_list, std::list<Command<T>> &commandlist) {
-  // void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BCAST<T>> &bcastlist, std::list<P> &split_list) {
+  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BCAST<T>> &bcastlist, std::vector<P> &split_list) {
 
     int myid;
     int numproc;
@@ -284,10 +283,6 @@ template <typename T>
     for(auto &bcast : bcastlist_intra)
       bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
 
-    // SPLIT COMMUNICATOR
-    // CommBench::Comm<T> *split = new CommBench::Comm<T>(comm_mpi, lib_intra);
-   // bool commfound = false;
-
     // ADD INTER-NODE BROADCAST BY STRIPING
     if(bcastlist_inter.size())
     {
@@ -295,8 +290,6 @@ template <typename T>
         int sendgroup = bcast.sendid / nodesize;
         size_t splitoffset = 0;
         for(int p = 0; p < nodesize; p++) {
-          if(printid == ROOT)
-            printf("split ");
           int recver = sendgroup * nodesize + p;
           size_t splitcount = bcast.count / nodesize + (p < bcast.count % nodesize ? 1 : 0);
           if(splitcount) {
@@ -310,14 +303,12 @@ template <typename T>
 #endif
                 buffsize += splitcount;
               }
-              // split->add(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver);
-              // commfound = true;
               split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
               bcastlist.push_back(BCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
             }
             else {
               if(printid == ROOT)
-                printf("* skip self\n");
+                printf("split * skip self\n");
               bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + splitoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, bcast.sendid, bcast.recvids));
             }
             splitoffset += splitcount;
@@ -327,65 +318,6 @@ template <typename T>
         }
       }
     }
-    //if(commfound)
-    //  commandlist.push_back(Command<T>(split));
-    //else
-    //  delete split;
-  }
-
-  template <typename T>
-  void scatter(const MPI_Comm &comm_mpi, int nodesize, CommBench::library lib_inter, CommBench::library lib_intra, std::vector<BCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
-
-    std::vector<BCAST<T>> scatterlist;
-    std::vector<BCAST<T>> bcastlist_new;
-    for(auto &bcast : bcastlist) {
-      // STRIPE INTO NUMBER OF THE RECVIEVING PROCS
-      int scatter = 0;
-      size_t scatteroffset = 0;
-      for(auto it = bcast.recvids.begin(); it != bcast.recvids.end(); ++it) {
-        size_t scattercount = bcast.count / bcast.recvids.size() + (scatter < bcast.count % bcast.recvids.size() ? 1 : 0);
-        if(scattercount) {
-          int recvid = *it; 
-          scatterlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset + scatteroffset, bcast.recvbuf, bcast.recvoffset + scatteroffset, scattercount, bcast.sendid, recvid));
-          // UPDATE THE BCAST PRIMITIVE FOR ALL-GATHER EXCEPT SELF
-          std::vector<int> recvids;
-          for(auto it_temp = bcast.recvids.begin(); it_temp != bcast.recvids.end(); ++it_temp) 
-            if(it_temp != it)
-              recvids.push_back(*it_temp);
-          if(recvids.size())
-            bcastlist_new.push_back(BCAST<T>(bcast.recvbuf, bcast.recvoffset + scatteroffset, bcast.recvbuf, bcast.recvoffset + scatteroffset, scattercount, recvid, recvids));
-          scatter++;
-          scatteroffset += scattercount;
-        }
-        else
-          break;
-      }
-    }
-    if(printid == ROOT) {
-      printf("bcastlist size %zu\n", bcastlist.size());
-      printf("scatterlist size %zu\n", scatterlist.size());
-      printf("new bcastlist size %zu\n", bcastlist_new.size());
-      printf("lib_inter %d\n", lib_inter);
-      printf("lib_intra %d\n", lib_intra);
-    }
-
-    // STRIPE SCATTER & UPDATE STRIPELIST
-    stripe(comm_mpi, nodesize, lib_intra, scatterlist, commandlist);
-    // BUILD TWO-LEVEL SCATTER TREE
-    {
-      std::vector<int> groupsize = {numproc, nodesize};
-      std::vector<CommBench::library> lib = {lib_inter, lib_intra};
-      bcast_tree(comm_mpi, groupsize.size(), groupsize.data(), lib.data(), scatterlist, 1, commandlist);
-    }
-    // UPDATE NEW BCAST TREE WITH THE REST OF THE BROADCAST
-    bcastlist.clear();
-    for(auto &bcast : bcastlist_new)
-      bcastlist.push_back(BCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
   }
 
   template <typename T>

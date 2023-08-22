@@ -95,12 +95,12 @@
             if(sendid / groupsize[level] == sendgroup)
               sendids.push_back(sendid);
           if(sendids.size()) {
-            if(printid == ROOT) {
+            /*if(printid == ROOT) {
               printf("recvgroup: %d recvid: %d sendgroup: %d sendids: ", recvgroup, reduce.recvid, sendgroup);
               for(auto sendid : sendids)
                 printf("%d ", sendid);
               printf("\n");
-            }
+            }*/
             int recvid = sendgroup * groupsize[level] + reduce.recvid % groupsize[level];
             T* outputbuf;
             size_t outputoffset;
@@ -189,15 +189,15 @@
         }
       }
     }
-    // ADD COMPUTE (IF ANY) OTHERWISE CLEAR MEMORY
-    if(compute_found)
-      commandlist.push_back(Command<T>(compute));
-    else
-      delete compute;
+    // ADD COMMUNICATION FOLLOWED BY COMPUTE (IF ANY) OTHERWISE CLEAR MEMORY
     if(commfound)
       commandlist.push_back(Command<T>(comm));
     else
       delete comm;
+    if(compute_found)
+      commandlist.push_back(Command<T>(compute));
+    else
+      delete compute;
     reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist, recvbuf_ptr, 0);
   }
 
@@ -216,3 +216,69 @@
       }
     }
   }
+
+  template <typename T, typename P>
+  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
+
+    int myid;
+    int numproc;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
+
+    // SEPARATE INTRA AND INTER NODES
+    std::vector<REDUCE<T>> reducelist_intra;
+    std::vector<REDUCE<T>> reducelist_inter;
+    for(auto &reduce : reducelist) {
+      int recvid = reduce.recvid;
+      std::vector<int> sendid_intra;
+      std::vector<int> sendid_inter;
+      for(auto &sendid : reduce.sendids)
+        if(sendid / nodesize == recvid / nodesize)
+          sendid_intra.push_back(sendid);
+        else
+          sendid_inter.push_back(sendid);
+      if(sendid_inter.size())
+        reducelist_inter.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
+      else
+        reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
+    }
+    if(printid == ROOT) {
+      printf("reduction striping groupsize: %d numgroups: %d\n", nodesize, numproc / nodesize);
+      printf("number of original reductions: %zu\n", reducelist.size());
+      printf("number of intra-node reductions: %zu number of inter-node reductions: %zu\n", reducelist_intra.size(), reducelist_inter.size());
+    }
+    // CLEAR REDUCELIST
+    reducelist.clear();
+    // ADD INTRA-NODE REDUCTION DIRECTLY (IF ANY)
+    for(auto &reduce : reducelist_intra)
+      reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
+
+    // ADD INTER-NODE REDUCTIONS BY STRIPING
+    if(reducelist_inter.size())
+    {
+      for(auto &reduce : reducelist_inter) {
+        int recvnode = reduce.recvid / nodesize;
+        size_t splitoffset = 0;
+        for(int p = 0; p < nodesize; p++) {
+          int recver = recvnode * nodesize + p;
+          size_t splitcount = reduce.count / nodesize + (p < reduce.count % nodesize ? 1 : 0);
+          if(splitcount) {
+            T *recvbuf_temp;
+            if(myid == recver) {
+#ifdef PORT_CUDA
+              cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#elif defined PORT_HIP
+              hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
+#endif
+              buffsize += splitcount;
+            }
+            reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));
+            splitoffset += splitcount;
+          }
+          else
+            break;
+        }
+      }
+    }
+  }
+

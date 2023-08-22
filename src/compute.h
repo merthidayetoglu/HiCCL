@@ -26,7 +26,7 @@
   template <typename T>
   class Compute {
 
-    MPI_Comm comm_mpi;
+    const MPI_Comm &comm_mpi = CommBench::comm_mpi;
     int numcomp = 0;
 
     std::vector<std::vector<T*>> inputbuf;
@@ -42,7 +42,7 @@
     public:
 
     Compute(const MPI_Comm &comm_mpi_temp) {
-      MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
+      // MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
     }
 
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {

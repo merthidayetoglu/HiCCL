@@ -185,6 +185,8 @@ namespace ExaComm {
           ExaComm::batch(reducelist, numbatch, reduce_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
+            std::vector<REDUCE<T>> split_list;
+            ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], split_list);
             /*if(groupsize[0] < numproc) {
               // HIERARCHICAL REDUCTION RING
             }
@@ -207,13 +209,13 @@ namespace ExaComm {
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
             std::vector<REDUCE<T>> split_list;
-            // std::vector<BCAST<T>> split_list;
-	    ExaComm::stripe(comm_mpi, numstripe, lib[numlevel - 1], bcast_batch[batch], split_list, command_batch[batch]);
+            //std::vector<BCAST<T>> split_list;
+	    ExaComm::stripe(comm_mpi, numstripe, bcast_batch[batch], split_list);
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
-            // ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, 1, command_batch[batch]);
+            //ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, 1, command_batch[batch]);
             if(groupsize[0] < numproc) {
               // HIERARCHICAL RING
               std::vector<BCAST<T>> bcast_intra;
