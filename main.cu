@@ -195,10 +195,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 4;
-    int hierarchy[5] = {numproc, 16, 8, 4, 2};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    // coll.stripe(8);
+    int numlevel = 2;
+    int hierarchy[5] = {numproc, 4, 8, 4, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    // coll.stripe(4);
 
     double time = MPI_Wtime();
     coll.init(numlevel, hierarchy, library, numbatch, pipeoffset);
