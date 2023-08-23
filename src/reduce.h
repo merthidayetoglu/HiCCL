@@ -218,33 +218,52 @@
   }
 
   template<typename T>
-  void reduce_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<Command<T>> &commandlist) {
+  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
 
-    std::vector<REDUCE<T>> reducelist_extra;
+    std::vector<REDUCE<T>> reducelist_intra;
+    std::vector<REDUCE<T>> reducelist_intra_ready;
 
-    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib);
+    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
     bool commfound = false;
 
-    /*for(auto &reduce : reducelist) {
-      int recvnode = reduce.recvid / groupsize;
+    if(printid == ROOT)
+      printf("number of original reductions %ld\n", reducelist.size());
+    for(auto &reduce : reducelist) {
+      int recvnode = reduce.recvid / groupsize[0];
       std::vector<int> sendids_intra;
       std::vector<int> sendids_extra;
       for(auto &sendid : reduce.sendids) {
-        int sendnode = sendid / groupsize;
+        int sendnode = sendid / groupsize[0];
         if(sendnode == recvnode)
           sendids_intra.push_back(sendid);
         else
           sendids_extra.push_back(sendid);
       }
       if(printid == ROOT)
-        printf("sendids_intra: %zu sendids_extra: %zu\n", sendids_intra.size(), sendids_extra.size());
-      if(sendids_intra.size())
-        bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));*/
+        printf("recvid %d numsend %ld sendids_intra: %zu sendids_extra: %zu\n", reduce.recvid, reduce.sendids.size(), sendids_intra.size(), sendids_extra.size());
+      if(sendids_extra.size()) {
+        int numgroup = numproc / groupsize[0];
+        std::vector<std::vector<int>> sendids_group(numgroup);
+        for(auto &sendid : sendids_extra) {
+          int sendgroup = sendid / groupsize[0];
+          sendids_group[sendgroup].push_back(sendid);
+        }
+        if(printid == ROOT)
+          for(int group = 0; group < numgroup; group++) {
+            printf("for group %d / %d: ", group, numgroup);
+            for(auto &sendid : sendids_group[group])
+              printf("%d ", sendid);
+            printf("\n");
+          }
+      }
+      else
+        reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
+    }
   }
 
   template <typename T, typename P>
@@ -275,7 +294,8 @@
     if(printid == ROOT) {
       printf("reduction striping groupsize: %d numgroups: %d\n", nodesize, numproc / nodesize);
       printf("number of original reductions: %zu\n", reducelist.size());
-      printf("number of intra-node reductions: %zu number of inter-node reductions: %zu\n", reducelist_intra.size(), reducelist_inter.size());
+      printf("number of intra-node reductions: %zu number of extra-node reductions: %zu\n", reducelist_intra.size(), reducelist_inter.size());
+      printf("\n");
     }
     // CLEAR REDUCELIST
     reducelist.clear();

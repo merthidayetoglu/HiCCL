@@ -166,7 +166,7 @@
   }
 
   template<typename T>
-  void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<Command<T>> &commandlist) {
+  void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
@@ -175,15 +175,15 @@
 
     std::vector<BROADCAST<T>> bcastlist_extra;
 
-    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib);
+    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
     bool commfound = false;
 
     for(auto &bcast : bcastlist) {
-      int sendnode = bcast.sendid / groupsize;
+      int sendnode = bcast.sendid / groupsize[0];
       std::vector<int> recvids_intra;
       std::vector<int> recvids_extra;
       for(auto &recvid : bcast.recvids) {
-        int recvnode = recvid / groupsize;
+        int recvnode = recvid / groupsize[0];
         if(sendnode == recvnode)
           recvids_intra.push_back(recvid);
         else
@@ -196,9 +196,9 @@
       if(recvids_extra.size()) {
         T *recvbuf;
         size_t recvoffset;
-        int recvid = ((sendnode + 1) % (numproc / groupsize)) * groupsize + bcast.sendid % groupsize;
+        int recvid = ((sendnode + 1) % (numproc / groupsize[0])) * groupsize[0] + bcast.sendid % groupsize[0];
         bool found = false;
-        for(auto it = recvids_extra.begin(); it != recvids_extra.end(); ++it)
+        for(auto it = recvids_extra.begin(); it != recvids_extra.end(); it++)
           if(*it == recvid) {
             found = true;
             recvids_extra.erase(it);
@@ -232,9 +232,15 @@
       commandlist.push_back(Command<T>(comm_temp));
     else
       delete comm_temp;
-    // EXTRA-NODE COMMUNICATION
     if(bcastlist_extra.size())
-      bcast_ring(comm_mpi, groupsize, lib, bcastlist_extra, bcastlist_intra, commandlist);
+      // IMPLEMENT RING FOR EXTRA-NODE COMMUNICATIONS (IF THERE IS STILL LEFT)
+      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, bcastlist_intra, commandlist);
+    else {
+      // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
+      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+      groupsize_temp[0] = numproc;
+      ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, 1, commandlist);
+    }
   }
 
   template <typename T, typename P>

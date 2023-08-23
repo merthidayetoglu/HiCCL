@@ -183,12 +183,11 @@ namespace ExaComm {
             // STRIPE REDUCTION
             std::vector<BROADCAST<T>> merge_list;
             ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], merge_list);
-            /*if(groupsize[0] < numproc) {
+            if(groupsize[0] < numproc) {
               // HIERARCHICAL REDUCTION RING
-              std::vector<REDUCE<T>> reduce_intra;
-              ExaComm::reduce_ring(comm_mpi, groupsize[0], lib[0], reduce_batch[batch], reduce_intra, command_batch[batch]);
+              ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], command_batch[batch]);
             }
-            else*/
+            else
 	    {
               // HIERARCHICAL REDUCTION TREE
               std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
@@ -213,26 +212,15 @@ namespace ExaComm {
           for(int batch = 0; batch < numbatch; batch++) {
             // STRIPE BROADCAST
             std::vector<REDUCE<T>> split_list;
-            //std::vector<BROADCAST<T>> split_list;
 	    ExaComm::stripe(comm_mpi, numstripe, bcast_batch[batch], split_list);
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
             // INITIALZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
-            //ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, 1, command_batch[batch]);
-            if(groupsize[0] < numproc) {
-              // HIERARCHICAL RING
-              std::vector<BROADCAST<T>> bcast_intra;
-              ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, command_batch[batch]);
-	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-	      groupsize_temp[0] = numproc;
-              ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, command_batch[batch]);
-            }
-            else {
-              // HIERARCHICAL TREE
-              ExaComm::bcast_tree(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], 1, command_batch[batch]);
-            }
+            // HIERARCHICAL RING + TREE
+            std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
+            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, command_batch[batch]);
           }
         }
       }

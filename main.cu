@@ -67,12 +67,13 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  int numstripe = atoi(argv[2]);
-  int pipedepth = atoi(argv[3]);
-  int pipeoffset = atoi(argv[4]);
-  size_t count = atol(argv[5]);
-  int warmup = atoi(argv[6]);
-  int numiter = atoi(argv[7]);
+  int numgroup = atoi(argv[2]);
+  int numstripe = atoi(argv[3]);
+  int pipedepth = atoi(argv[4]);
+  int pipeoffset = atoi(argv[5]);
+  size_t count = atol(argv[6]);
+  int warmup = atoi(argv[7]);
+  int numiter = atoi(argv[8]);
 
   enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
@@ -84,6 +85,7 @@ int main(int argc, char *argv[])
     printf("Number of threads per proc: %d\n", numthread);
     printf("Number of warmup %d\n", warmup);
     printf("Number of iterations %d\n", numiter);
+    printf("\n");
 
     printf("Pattern: ");
     switch(pattern) {
@@ -96,6 +98,7 @@ int main(int argc, char *argv[])
       case reducescatter : printf("Reduce-Scatter\n"); break;
       case allreduce     : printf("All-Reduce\n");     break;
     }
+    printf("Number of ring groups: %d\n", numgroup);
     printf("Number of stripes: %d\n", numstripe);
     printf("Pipeline depth: %d\n", pipedepth);
     printf("Pipeline offset: %d\n", pipeoffset);
@@ -210,7 +213,7 @@ int main(int argc, char *argv[])
 
     // MACHINE DESCRIPTION
     int numlevel = 3;
-    int hierarchy[5] = {4, 8, 4, 4, 2};
+    int hierarchy[5] = {numproc / numgroup, 8, 4, 4, 2};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     // INITIALIZE
