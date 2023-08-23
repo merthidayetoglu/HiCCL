@@ -23,14 +23,14 @@
 #define ROOT 0
 
 // HEADERS
-// #include <nccl.h>
- #include <rccl.h>
+ #include <nccl.h>
+// #include <rccl.h>
 // #include <sycl.hpp>
 // #include <ze_api.h>
 
 // PORTS
-// #define PORT_CUDA
- #define PORT_HIP
+ #define PORT_CUDA
+// #define PORT_HIP
 // #define PORT_SYCL
 
 #include "exacomm.h"
@@ -100,9 +100,21 @@ int main(int argc, char *argv[])
 
     printf("Bytes per Type %lu\n", sizeof(Type));
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
-    printf("Sendbuffer count %ld ( %ld Bytes %.2f GB)\n", count * numproc, count * numproc * sizeof(Type), count * numproc * sizeof(Type) / 1.e9);
-    printf("Recvbuffer count %ld ( %ld Bytes %.2f GB)\n", count * numproc, count * numproc * sizeof(Type), count * numproc * sizeof(Type) / 1.e9);
-    printf("\n");
+    {
+      size_t data = 2 * count * numproc * sizeof(Type);
+      printf("sendbuf + recvbuf count: %zu + %zu = ", count, count);
+      if (data < 1e3)
+        printf("%zu bytes\n", data);
+      else if (data < 1e6)
+        printf("%.4f KB\n", data / 1.e3);
+      else if (data < 1e9)
+        printf("%.4f MB\n", data / 1.e6);
+      else if (data < 1e12)
+        printf("%.4f GB\n", data / 1.e9);
+      else
+        printf("data: %.4f TB\n", data / 1.e12);
+      printf("\n");
+    }
   }
 
   setup_gpu();
@@ -195,10 +207,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 4;
-    int hierarchy[5] = {numproc, 16, 8, 4, 2};
+    int numlevel = 2;
+    int hierarchy[5] = {numproc, 4, 4, 4, 2};
     CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    coll.stripe(8);
+    coll.stripe(4);
 
     double time = MPI_Wtime();
     coll.init(numlevel, hierarchy, library, pipedepth, pipeoffset);
