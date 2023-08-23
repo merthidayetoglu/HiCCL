@@ -166,7 +166,6 @@
   }
 
   template<typename T>
-  // void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::list<Command<T>> &commandlist) {
   void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<Command<T>> &commandlist) {
 
     int myid;
@@ -175,7 +174,6 @@
     MPI_Comm_size(comm_mpi, &numproc);
 
     std::vector<BROADCAST<T>> bcastlist_extra;
-    // std::vector<BROADCAST<T>> bcastlist_intra;
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib);
     bool commfound = false;
@@ -234,17 +232,9 @@
       commandlist.push_back(Command<T>(comm_temp));
     else
       delete comm_temp;
-
     // EXTRA-NODE COMMUNICATION
     if(bcastlist_extra.size())
-      // bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, commandlist);
       bcast_ring(comm_mpi, groupsize, lib, bcastlist_extra, bcastlist_intra, commandlist);
-    // USE H-TREE IN INTRA-NODE COMMUNICATION
-    /*if(bcastlist_intra.size()) {
-      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-      groupsize_temp[0] = numproc;
-      bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, 1, commandlist);
-    }*/
   }
 
   template <typename T, typename P>

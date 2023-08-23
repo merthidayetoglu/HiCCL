@@ -217,6 +217,36 @@
     }
   }
 
+  template<typename T>
+  void reduce_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<Command<T>> &commandlist) {
+
+    int myid;
+    int numproc;
+    MPI_Comm_rank(comm_mpi, &myid);
+    MPI_Comm_size(comm_mpi, &numproc);
+
+    std::vector<REDUCE<T>> reducelist_extra;
+
+    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib);
+    bool commfound = false;
+
+    /*for(auto &reduce : reducelist) {
+      int recvnode = reduce.recvid / groupsize;
+      std::vector<int> sendids_intra;
+      std::vector<int> sendids_extra;
+      for(auto &sendid : reduce.sendids) {
+        int sendnode = sendid / groupsize;
+        if(sendnode == recvnode)
+          sendids_intra.push_back(sendid);
+        else
+          sendids_extra.push_back(sendid);
+      }
+      if(printid == ROOT)
+        printf("sendids_intra: %zu sendids_extra: %zu\n", sendids_intra.size(), sendids_extra.size());
+      if(sendids_intra.size())
+        bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));*/
+  }
+
   template <typename T, typename P>
   void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
 

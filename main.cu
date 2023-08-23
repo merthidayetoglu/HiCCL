@@ -67,11 +67,12 @@ int main(int argc, char *argv[])
 
   // INPUT PARAMETERS
   int pattern = atoi(argv[1]);
-  int pipedepth = atoi(argv[2]);
-  int pipeoffset = atoi(argv[3]);
-  size_t count = atol(argv[4]);
-  int warmup = atoi(argv[5]);
-  int numiter = atoi(argv[6]);
+  int numstripe = atoi(argv[2]);
+  int pipedepth = atoi(argv[3]);
+  int pipeoffset = atoi(argv[4]);
+  size_t count = atol(argv[5]);
+  int warmup = atoi(argv[6]);
+  int numiter = atoi(argv[7]);
 
   enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[])
       case reducescatter : printf("Reduce-Scatter\n"); break;
       case allreduce     : printf("All-Reduce\n");     break;
     }
+    printf("Number of stripes: %d\n", numstripe);
     printf("Pipeline depth: %d\n", pipedepth);
     printf("Pipeline offset: %d\n", pipeoffset);
 
@@ -160,23 +162,23 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, ROOT);
         break;
       case broadcast :
-        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
+        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        for(int recver = 0; recver < numproc; recver++)
+        /*for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
+          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);*/
         break;
       case reduce :
-        // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
+        coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
         // REDUCE-SCATTER + GATHER
-	for(int recver = 0; recver < numproc; recver++)
+	/* for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
-            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT);
+            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT);*/
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -207,24 +209,24 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 1;
-    int hierarchy[5] = {numproc, 8, 4, 4, 2};
+    int numlevel = 3;
+    int hierarchy[5] = {4, 8, 4, 4, 2};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    // coll.stripe(4);
 
+    // INITIALIZE
     double time = MPI_Wtime();
-    coll.init(numlevel, hierarchy, library, pipedepth, pipeoffset);
+    coll.init(numlevel, hierarchy, library, numstripe, pipedepth, pipeoffset);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    coll.measure(warmup, numiter);
-    // coll.report();
+    // coll.measure(warmup, numiter);
+    coll.report();
 
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
 
-    coll.time();
+    // coll.time();
   }
 
 // DEALLOCATE

@@ -92,7 +92,6 @@ namespace ExaComm {
     std::vector<std::vector<BROADCAST<T>>> bcast_epoch;
     std::vector<std::vector<REDUCE<T>>> reduce_epoch;
     int numepoch = 0;
-    int numstripe = 1;
 
     // MACHINE
     std::vector<int> numlevel;
@@ -108,10 +107,6 @@ namespace ExaComm {
       bcast_epoch.push_back(std::vector<BROADCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
       numepoch++;
-    }
-
-    void stripe(int numstripe) {
-      this->numstripe = numstripe;
     }
 
     Comm(const MPI_Comm &comm_mpi_temp) {
@@ -137,7 +132,7 @@ namespace ExaComm {
     }
 
     // INITIALIZE BROADCAST AND REDUCTION TREES
-    void init(int numlevel, int groupsize[], CommBench::library lib[], int numbatch, int pipelineoffset) {
+    void init(int numlevel, int groupsize[], CommBench::library lib[], int numstripe, int numbatch, int pipelineoffset) {
 
       int myid;
       int numproc;
@@ -190,14 +185,19 @@ namespace ExaComm {
             ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], merge_list);
             /*if(groupsize[0] < numproc) {
               // HIERARCHICAL REDUCTION RING
+              std::vector<REDUCE<T>> reduce_intra;
+              ExaComm::reduce_ring(comm_mpi, groupsize[0], lib[0], reduce_batch[batch], reduce_intra, command_batch[batch]);
             }
-            else {*/
+            else*/
+	    {
               // HIERARCHICAL REDUCTION TREE
-	      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-	      groupsize_temp[0] = numproc;
+              std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+              groupsize_temp[0] = numproc;
               std::vector<T*> recvbuff; // for memory recycling
               ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reduce_batch[batch], numlevel - 1, command_batch[batch], recvbuff, 0);
-            // }
+            }
+            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+            groupsize_temp[0] = numproc;
             // COMPLETE STRIPING BY INTRA-NODE GATHER
             ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, command_batch[batch]);
 	  }
