@@ -40,7 +40,7 @@
 void print_args();
 
 // USER DEFINED TYPE
-#define Type int
+#define Type size_t
 /*struct Type
 {
   // int tag;
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     printf("Point-to-point (P2P) count %ld ( %ld Bytes)\n", count, count * sizeof(Type));
     {
       size_t data = 2 * count * numproc * sizeof(Type);
-      printf("sendbuf + recvbuf count: %zu + %zu = ", count, count);
+      printf("sendbuf + recvbuf count: %zu + %zu = ", count * numproc, count * numproc);
       if (data < 1e3)
         printf("%zu bytes\n", data);
       else if (data < 1e6)
@@ -160,23 +160,23 @@ int main(int argc, char *argv[])
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, ROOT);
         break;
       case broadcast :
-        coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
+        // coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        /*for(int recver = 0; recver < numproc; recver++)
+        for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
         break;
       case reduce :
-        coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
+        // coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
         // REDUCE-SCATTER + GATHER
-	/*for(int recver = 0; recver < numproc; recver++)
+	for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
-            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT);*/
+            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT);
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -207,10 +207,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 2;
-    int hierarchy[5] = {numproc, 4, 4, 4, 2};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
-    coll.stripe(4);
+    int numlevel = 1;
+    int hierarchy[5] = {numproc, 8, 4, 4, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    // coll.stripe(4);
 
     double time = MPI_Wtime();
     coll.init(numlevel, hierarchy, library, pipedepth, pipeoffset);

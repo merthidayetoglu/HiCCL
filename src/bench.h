@@ -125,6 +125,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   hipStreamSynchronize(stream);
 #endif
 
+  unsigned long errorcount = 0;
   bool pass = true;
   switch(patternid) {
     case scatter: if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
@@ -154,8 +155,10 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
       if(myid == ROOT)
         for(size_t i = 0; i < count * numproc; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[i] != i * numproc)
+          if(recvbuf[i] != i * numproc) {
             pass = false;
+            errorcount++;
+          }
         }
       break;
     case alltoall: if(myid == ROOT) printf("VERIFY ALL-TO-ALL: ");
@@ -192,13 +195,22 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
       pass = false;
       break;
   }
-
   MPI_Allreduce(MPI_IN_PLACE, &pass, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
   if(myid == ROOT) {
     if(pass)
       printf("PASSED!\n");
     else
       printf("FAILED!!!\n");
+  }
+  if(!pass) {
+    std::vector<unsigned long> errorcounts(numproc);
+    MPI_Allgather(&errorcount, 1, MPI_UNSIGNED_LONG, errorcounts.data(), 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &errorcount, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
+    if(myid == ROOT) {
+      printf("count %zu total errorcount %zu\n", count, errorcount);
+      for(int proc = 0; proc < numproc; proc++)
+        printf("proc %d errorcount:  %zu\n", proc, errorcounts[proc]);
+    }
   }
 
 #ifdef PORT_CUDA
