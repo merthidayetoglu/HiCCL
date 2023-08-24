@@ -69,11 +69,12 @@ int main(int argc, char *argv[])
   int pattern = atoi(argv[1]);
   int numgroup = atoi(argv[2]);
   int numstripe = atoi(argv[3]);
-  int pipedepth = atoi(argv[4]);
-  int pipeoffset = atoi(argv[5]);
-  size_t count = atol(argv[6]);
-  int warmup = atoi(argv[7]);
-  int numiter = atoi(argv[8]);
+  int stripeoffset = atoi(argv[4]);
+  int pipedepth = atoi(argv[5]);
+  int pipeoffset = atoi(argv[6]);
+  size_t count = atol(argv[7]);
+  int warmup = atoi(argv[8]);
+  int numiter = atoi(argv[9]);
 
   enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
@@ -100,6 +101,7 @@ int main(int argc, char *argv[])
     }
     printf("Number of ring groups: %d\n", numgroup);
     printf("Number of stripes: %d\n", numstripe);
+    printf("Stripe offset: %d\n", stripeoffset);
     printf("Pipeline depth: %d\n", pipedepth);
     printf("Pipeline offset: %d\n", pipeoffset);
 
@@ -218,7 +220,7 @@ int main(int argc, char *argv[])
 
     // INITIALIZE
     double time = MPI_Wtime();
-    coll.init(numlevel, hierarchy, library, numstripe, pipedepth, pipeoffset);
+    coll.init(numlevel, hierarchy, library, numstripe, stripeoffset, pipedepth, pipeoffset);
     time = MPI_Wtime() - time;
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
