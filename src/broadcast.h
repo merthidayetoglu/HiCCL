@@ -251,7 +251,7 @@
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
 
-    int nodesize = numstripe * stripeoffset;
+    int nodesize = (stripeoffset == 0 ? 1 : numstripe * stripeoffset);
 
     // SEPARATE INTRA AND INTER NODES
     std::vector<BROADCAST<T>> bcastlist_intra;
