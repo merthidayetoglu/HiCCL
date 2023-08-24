@@ -201,24 +201,8 @@
     reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist, recvbuf_ptr, 0);
   }
 
-  template <typename T>
-  void batch(std::vector<REDUCE<T>> &reducelist, int numbatch, std::vector<std::vector<REDUCE<T>>> &reduce_batch) {
-    for(auto &reduce : reducelist) {
-      size_t batchoffset = 0;
-      for(int batch = 0; batch < numbatch; batch++) {
-        size_t batchsize = reduce.count / numbatch + (batch < reduce.count % numbatch ? 1 : 0);
-        if(batchsize) {
-          reduce_batch[batch].push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + batchoffset, reduce.recvbuf, reduce.recvoffset + batchoffset, batchsize, reduce.sendids, reduce.recvid));
-          batchoffset += batchsize;
-        }
-        else
-          break;
-      }
-    }
-  }
-
   template<typename T>
-  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::list<Command<T>> &commandlist) {
+  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<Command<T>> &commandlist) {
 
     int myid;
     int numproc;
@@ -228,51 +212,9 @@
     if(printid == ROOT)
       printf("number of original reductions %ld\n", reducelist.size());
 
-    std::vector<REDUCE<T>> reducelist_intra;
+    // std::vector<REDUCE<T>> reducelist_intra;
     std::vector<REDUCE<T>> reducelist_extra;
 
-    /*for(auto &reduce : reducelist) {
-      int numgroup = numproc / groupsize[0];
-      std::vector<int> sendids_extra;
-      T *recvbuf;
-      size_t recvoffset;
-      // CLEAR INTRA-NODE COMMUNICATIONS
-      for(int group = 0; group < numgroup; group++) {
-        std::vector<int> sendids;
-        for(auto &sendid : reduce.sendids)
-          if(sendid / groupsize[0] == group)
-            sendids.push_back(sendid);
-
-        if(printid == ROOT) {
-          printf("for group %d / %d: ", group, numgroup);
-          for(auto &sendid : sendids)
-            printf("%d ", sendid);
-          printf("\n");
-        }
-        if(sendids.size()) {
-          int recvid = group * groupsize[0] + reduce.recvid % groupsize[0];
-          if(sendids.size() == 1 && sendids[0] == recvid) {
-            recvbuf = reduce.sendbuf;
-            recvoffset = reduce.sendoffset;
-          }
-          else {
-	    if(myid == recvid) {
-#ifdef PORT_CUDA
-              cudaMalloc(&recvbuf, reduce.count * sizeof(T));
-#elif defined PORT_HIP
-              hipMalloc(&recvbuf, reduce.count * sizeof(T));
-#endif
-              recvoffset = 0;
-              buffsize += reduce.count;
-            }
-            reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf, recvoffset, reduce.count, sendids, recvid));
-          }
-          sendids_extra.push_back(recvid);
-        }
-      }
-      reducelist_extra.push_back(REDUCE<T>(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_extra, reduce.recvid));
-    }*/
-    
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
     bool commfound = false;
 
@@ -365,7 +307,7 @@
           if(printid == ROOT)
             printf("proc %d allocate %ld\n", reduce.recvid, reduce.count);
           sendids_intra.push_back(reduce.recvid);
-          reducelist_extra.push_back(REDUCE<T>(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_intra, reduce.recvid));
+          reducelist_intra.push_back(REDUCE<T>(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_intra, reduce.recvid));
         }
         comm_temp->add(sendbuf, sendoffset, recvbuf, recvoffset, reduce.count, sendid, reduce.recvid);
         commfound = true;
@@ -378,7 +320,7 @@
     }
 
     if(reducelist_extra.size())
-      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist_extra, commandlist);
+      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist_extra, reducelist_intra, commandlist);
     else {
       // COMPLETE RING WITH INTRA-NODE TREE REDUCTION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
@@ -408,12 +350,14 @@
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
+  void stripe(const MPI_Comm &comm_mpi, int numstripe, int stripeoffset, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
 
     int myid;
     int numproc;
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
+
+    int nodesize = numstripe * stripeoffset;
 
     // SEPARATE INTRA AND INTER NODES
     std::vector<REDUCE<T>> reducelist_intra;
@@ -433,7 +377,7 @@
         reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
     }
     if(printid == ROOT) {
-      printf("reduction striping groupsize: %d numgroups: %d\n", nodesize, numproc / nodesize);
+      printf("reduction numstripe %d stripeoffset %d groupsize: %d numgroups: %d\n", numstripe, stripeoffset, nodesize, numproc / nodesize);
       printf("number of original reductions: %zu\n", reducelist.size());
       printf("number of intra-node reductions: %zu number of extra-node reductions: %zu\n", reducelist_intra.size(), reducelist_inter.size());
       printf("\n");
@@ -450,9 +394,9 @@
       for(auto &reduce : reducelist_inter) {
         int recvnode = reduce.recvid / nodesize;
         size_t splitoffset = 0;
-        for(int p = 0; p < nodesize; p++) {
-          int recver = recvnode * nodesize + p;
-          size_t splitcount = reduce.count / nodesize + (p < reduce.count % nodesize ? 1 : 0);
+        for(int stripe = 0; stripe < numstripe; stripe++) {
+          int recver = recvnode * nodesize + stripe * stripeoffset;
+          size_t splitcount = reduce.count / numstripe + (stripe < reduce.count % numstripe ? 1 : 0);
           if(splitcount) {
             if(recver != reduce.recvid) {
               T *recvbuf_temp;
@@ -474,6 +418,22 @@
           else
             break;
         }
+      }
+    }
+  }
+
+  template <typename T>
+  void batch(std::vector<REDUCE<T>> &reducelist, int numbatch, std::vector<std::vector<REDUCE<T>>> &reduce_batch) {
+    for(auto &reduce : reducelist) {
+      size_t batchoffset = 0;
+      for(int batch = 0; batch < numbatch; batch++) {
+        size_t batchsize = reduce.count / numbatch + (batch < reduce.count % numbatch ? 1 : 0);
+        if(batchsize) {
+          reduce_batch[batch].push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + batchoffset, reduce.recvbuf, reduce.recvoffset + batchoffset, batchsize, reduce.sendids, reduce.recvid));
+          batchoffset += batchsize;
+        }
+        else
+          break;
       }
     }
   }

@@ -244,12 +244,14 @@
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int nodesize, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
+  void stripe(const MPI_Comm &comm_mpi, int numstripe, int stripeoffset, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
 
     int myid;
     int numproc;
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
+
+    int nodesize = numstripe * stripeoffset;
 
     // SEPARATE INTRA AND INTER NODES
     std::vector<BROADCAST<T>> bcastlist_intra;
@@ -269,9 +271,10 @@
         bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
     }
     if(printid == ROOT) {
-      printf("broadcast striping groupsize: %d numgroups: %d\n", nodesize, numproc / nodesize);
+      printf("broadcast numstripe %d stripeoffset %d groupsize: %d numgroups: %d\n", numstripe, stripeoffset, nodesize, numproc / nodesize);
       printf("number of original broadcasts: %zu\n", bcastlist.size());
       printf("number of intra-node broadcast: %zu number of inter-node broadcast: %zu\n", bcastlist_intra.size(), bcastlist_inter.size());
+      printf("\n");
     }
     // CLEAR BROADCASTLIST
     bcastlist.clear();
@@ -285,9 +288,9 @@
       for(auto &bcast : bcastlist_inter) {
         int sendgroup = bcast.sendid / nodesize;
         size_t splitoffset = 0;
-        for(int p = 0; p < nodesize; p++) {
-          int recver = sendgroup * nodesize + p;
-          size_t splitcount = bcast.count / nodesize + (p < bcast.count % nodesize ? 1 : 0);
+        for(int stripe = 0; stripe < numstripe; stripe++) {
+          int recver = sendgroup * nodesize + stripe * stripeoffset;
+          size_t splitcount = bcast.count / numstripe + (stripe < bcast.count % numstripe ? 1 : 0);
           if(splitcount) {
             if(recver != bcast.sendid) {
               T *sendbuf_temp;
@@ -299,14 +302,11 @@
 #endif
                 buffsize += splitcount;
               }
-              split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
               bcastlist.push_back(BROADCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
+              split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
             }
-            else {
-              if(printid == ROOT)
-                printf("split * skip self\n");
+            else
               bcastlist.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset + splitoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, bcast.sendid, bcast.recvids));
-            }
             splitoffset += splitcount;
           }
           else
