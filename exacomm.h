@@ -112,7 +112,11 @@ namespace ExaComm {
     Comm(const MPI_Comm &comm_mpi_temp) {
     // Comm(const MPI_Comm &comm_mpi_temp) : comm_mpi(comm_mpi_temp) {
       // INITIALIZE COMMBENCH
+#ifdef CAP_NCCL
       CommBench::Comm<T> comm(comm_mpi_temp, CommBench::NCCL);
+#else
+      CommBench::Comm<T> comm(comm_mpi_temp, CommBench::MPI);
+#endif
       // DEFAULT EPOCH
       fence();
     }
@@ -183,9 +187,9 @@ namespace ExaComm {
             // STRIPE REDUCTION
             std::vector<BROADCAST<T>> merge_list;
             ExaComm::stripe(comm_mpi, numstripe, reduce_batch[batch], merge_list);
-            if(groupsize[0] < numproc) {
-              // HIERARCHICAL REDUCTION RING
-              ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], command_batch[batch]);
+            // HIERARCHICAL REDUCTION RING + TREE
+            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], command_batch[batch]);
+            /*if(groupsize[0] < numproc) {
             }
             else
 	    {
@@ -194,7 +198,7 @@ namespace ExaComm {
               groupsize_temp[0] = numproc;
               std::vector<T*> recvbuff; // for memory recycling
               ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reduce_batch[batch], numlevel - 1, command_batch[batch], recvbuff, 0);
-            }
+            }*/
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
             // COMPLETE STRIPING BY INTRA-NODE GATHER
@@ -215,7 +219,7 @@ namespace ExaComm {
 	    ExaComm::stripe(comm_mpi, numstripe, bcast_batch[batch], split_list);
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
-            // INITIALZE STRIPING BY INTRA-NODE SCATTER
+            // INITIALIZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
             // HIERARCHICAL RING + TREE
