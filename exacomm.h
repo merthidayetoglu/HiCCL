@@ -309,7 +309,7 @@ namespace ExaComm {
     }
 
     void time() {
-      if(printid == ROOT) {
+      if(command_batch.size() < 32 && printid == ROOT) {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
 
