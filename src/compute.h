@@ -145,13 +145,15 @@
 #endif
         MPI_Barrier(MPI_COMM_WORLD);
         double time = MPI_Wtime();
-        run();
+        this->start();
+        double start = MPI_Wtime() - time;
+        this->wait();
         time = MPI_Wtime() - time;
-
+        MPI_Allreduce(MPI_IN_PLACE, &start, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         if(iter < 0) {
           if(printid == ROOT)
-            printf("warmup: %e\n", time);
+            printf("startup %.2e warmup: %e\n", start, time);
         }
         else
           times[iter] = time;
