@@ -47,10 +47,10 @@ namespace ExaComm {
   template <typename T>
   class Command {
 
+    public:
+
     CommBench::Comm<T> *comm = nullptr;
     ExaComm::Compute<T> *compute = nullptr;
-
-    public:
 
     Command(CommBench::Comm<T> *comm) : comm(comm) {}
     Command(ExaComm::Compute<T> *compute) : compute(compute) {}
@@ -299,13 +299,12 @@ namespace ExaComm {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
       }
-      int counter = 0;
+      int command = 0;
       for(auto it = command_batch[0].begin(); it != command_batch[0].end(); it++) {
-        if(printid == ROOT) {
-          printf("counter: %d command::", counter);
-        }
+        if(printid == ROOT)
+          printf("command %d", command);
         it->report();
-        counter++;
+        command++;
       }
     }
 
@@ -313,6 +312,38 @@ namespace ExaComm {
       if(printid == ROOT) {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
+
+        using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+        std::vector<Iter> commandptr(command_batch.size());
+        for(int i = 0; i < command_batch.size(); i++)
+          commandptr[i] = command_batch[i].begin();
+        int command = 0;
+        while(true) {
+          printf("proc %d command %d: |", printid, command);
+          bool finished = true;
+          for(int i = 0; i < command_batch.size(); i++) {
+            if(commandptr[i] != command_batch[i].end()) {
+              if(commandptr[i]->comm) {
+                printf(" %d", commandptr[i]->comm->numsend);
+                switch(commandptr[i]->comm->lib) {
+                  case CommBench::IPC : printf(" IPC |"); break;
+                  case CommBench::MPI : printf(" MPI |"); break;
+                  case CommBench::NCCL : printf(" NCL |"); break;
+                }
+              }
+              if(commandptr[i]->compute)
+                printf(" %d HBM |", commandptr[i]->compute->numcomp);
+              finished = false;
+              commandptr[i]++;
+            }
+            else
+              printf("       |");
+          }
+          printf("\n");
+          if(finished)
+            break;
+          command++;
+        }
       }
 
       using Iter = typename std::list<ExaComm::Command<T>>::iterator;

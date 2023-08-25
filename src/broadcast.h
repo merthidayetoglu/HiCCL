@@ -134,15 +134,18 @@
                     break;
                   }
                 }
-                if(myid == recvid) {
-                  if(found)
+                if(found) {
+                  if(myid == recvid)
                     reuse += bcast.count;
-                  else {
+                }
+                else {
+                  if(myid == recvid) {
                     ExaComm::allocate(recvbuf, bcast.count);
                     buffsize += bcast.count;
                     recvoffset = 0;
-                    printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
                   }
+                  if(printid == ROOT)
+                    printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates\n", recvid, myid);
                 }
                 comm_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
                 commfound = true;

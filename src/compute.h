@@ -26,6 +26,8 @@
   template <typename T>
   class Compute {
 
+    public:
+
     const MPI_Comm &comm_mpi = CommBench::comm_mpi;
     int numcomp = 0;
 
@@ -38,8 +40,6 @@
 #elif defined PORT_HIP
     std::vector<hipStream_t*> stream;
 #endif
-
-    public:
 
     Compute(const MPI_Comm &comm_mpi_temp) {
       // MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY

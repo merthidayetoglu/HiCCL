@@ -322,20 +322,6 @@
       commandlist.push_back(Command<T>(compute_temp));
     else
        delete compute_temp;
-
-    /*if(reducelist_extra.size()) {
-      // IMPLEMENT LOCAL REDUCTION
-      reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, commandlist, recvbuff, 0);
-      // IMPLEMENT NEXT RING STEP WITH RAIL PATTERN
-      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist, std::list<Command<T>> &commandlist) {
-    }
-    else {
-      // COMPLETE RING WITH INTRA-NODE TREE REDUCTION
-      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-      groupsize_temp[0] = numproc;
-      std::vector<T*> recvbuff; // for memory recycling
-      reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, commandlist, recvbuff, 0);
-    }*/
   }
 
   template <typename T, typename P>
