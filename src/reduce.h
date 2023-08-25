@@ -111,13 +111,7 @@
 	      }
 	      else {
                 // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d send malloc %zu\n", myid, reduce.count * sizeof(T));
-#ifdef PORT_CUDA
-                cudaMalloc(&outputbuf, reduce.count * sizeof(T));
-#elif defined PORT_HIP
-                hipMalloc(&outputbuf, reduce.count * sizeof(T));
-#else
-                outputbuf = new T[reduce.count];
-#endif
+                ExaComm::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
                 buffsize += reduce.count;
 	      }
@@ -134,13 +128,7 @@
                     }
                     else {
                       // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d recv malloc %zu\n", myid, reduce.count * sizeof(T));
-#ifdef PORT_CUDA
-                      cudaMalloc(&recvbuf, reduce.count * sizeof(T));
-#elif defined PORT_HIP
-                      hipMalloc(&recvbuf, reduce.count * sizeof(T));
-#else
-                      recvbuf = new T[reduce.count];
-#endif
+                      ExaComm::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
                       buffsize += reduce.count;
                     }
@@ -216,7 +204,9 @@
     std::vector<REDUCE<T>> reducelist_extra;
 
     CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
+    ExaComm::Compute<T> *compute_temp = new ExaComm::Compute<T>(comm_mpi);
     bool commfound = false;
+    bool computefound = false;
 
     if(printid == ROOT)
       printf("number of original reductions %ld\n", reducelist.size());
@@ -251,7 +241,7 @@
             printf("\n");
           }
         }
-        // FOR EXTRA-NODE
+        // FOR SENDING NODE
         T *sendbuf;
         size_t sendoffset;
         bool sendreuse = false;
@@ -266,11 +256,7 @@
           }
         if(!sendreuse) {
 	  if(myid == sendid) {
-#ifdef PORT_CUDA
-            cudaMalloc(&sendbuf, reduce.count * sizeof(T));
-#elif defined PORT_HIP
-            hipMalloc(&sendbuf, reduce.count * sizeof(T));
-#endif
+            allocate(sendbuf, reduce.count);
             sendoffset = 0;
             buffsize += reduce.count;
           }
@@ -285,29 +271,28 @@
         reducelist_extra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, sendbuf, sendoffset, reduce.count, sendids_extra, sendid));
         if(printid == ROOT)
           printf("recvid %d sendids_intra: %zu sendids_extra: %zu\n", reduce.recvid, sendids_intra.size(), sendids_extra.size());
-        // FOR INTRA-NODE
-        T *recvbuf = reduce.sendbuf;
-        size_t recvoffset = reduce.sendoffset;
-        if(sendids[recvnode].size() == 0) {
+        // FOR RECIEVING NODE
+        T *recvbuf;
+        size_t recvoffset;
+        if(sendids_intra.size() == 0) {
           recvbuf = reduce.recvbuf;
           recvoffset = reduce.recvoffset;
-          if(printid == ROOT)
-            printf("proc %d reuse %ld\n", reduce.recvid, reduce.count);
+          reuse += reduce.count;
         }
 	else {
+          T *recvbuf_intra;
           if(myid == reduce.recvid) {
-#ifdef PORT_CUDA
-            cudaMalloc(&recvbuf, reduce.count * sizeof(T));
-#elif defined PORT_HIP
-            hipMalloc(&recvbuf, reduce.count * sizeof(T));
-#endif
+            allocate(recvbuf, reduce.count);
             recvoffset = 0;
             buffsize += reduce.count;
+            allocate(recvbuf_intra, reduce.count);
+            buffsize += reduce.count;
           }
-          if(printid == ROOT)
-            printf("proc %d allocate %ld\n", reduce.recvid, reduce.count);
+          reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
+          std::vector<T*> inputbuf = {recvbuf, recvbuf_intra};
+          compute_temp->add(inputbuf, reduce.recvbuf + reduce.recvoffset, reduce.count, reduce.recvid);
+          computefound = true;
           sendids_intra.push_back(reduce.recvid);
-          reducelist_intra.push_back(REDUCE<T>(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, sendids_intra, reduce.recvid));
         }
         comm_temp->add(sendbuf, sendoffset, recvbuf, recvoffset, reduce.count, sendid, reduce.recvid);
         commfound = true;
@@ -333,6 +318,10 @@
       commandlist.push_back(Command<T>(comm_temp));
     else
       delete comm_temp;
+    if(computefound)
+      commandlist.push_back(Command<T>(compute_temp));
+    else
+       delete compute_temp;
 
     /*if(reducelist_extra.size()) {
       // IMPLEMENT LOCAL REDUCTION
@@ -401,11 +390,7 @@
             if(recver != reduce.recvid) {
               T *recvbuf_temp;
               if(myid == recver) {
-#ifdef PORT_CUDA
-                cudaMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#elif defined PORT_HIP
-                hipMalloc(&recvbuf_temp, splitcount * sizeof(T));
-#endif
+                allocate(recvbuf_temp, splitcount);
                 buffsize += splitcount;
               }
               reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));

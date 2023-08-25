@@ -28,6 +28,20 @@ namespace ExaComm {
   size_t recycle = 0;
   size_t reuse = 0;
 
+  template <typename T>
+  void allocate(T *&buffer, size_t n) {
+#ifdef PORT_CUDA
+    cudaMalloc(&buffer, n * sizeof(T));
+#elif defined PORT_HIP
+    hipMalloc(&buffer, n * sizeof(T));
+#elif defined PORT_SYCL
+    buffer = sycl::malloc_device<T>(n, q);
+#else
+    buffer = new T[n];
+#endif
+  }
+
+
 #include "src/compute.h"
 
   template <typename T>

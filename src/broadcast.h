@@ -138,11 +138,7 @@
                   if(found)
                     reuse += bcast.count;
                   else {
-#ifdef PORT_CUDA
-                    cudaMalloc(&recvbuf, bcast.count * sizeof(T));
-#elif defined PORT_HIP
-                    hipMalloc(&recvbuf, bcast.count * sizeof(T));
-#endif
+                    ExaComm::allocate(recvbuf, bcast.count);
                     buffsize += bcast.count;
                     recvoffset = 0;
                     printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates recvbuf %p equal %d\n", recvid, myid, recvbuf, myid == recvid);
@@ -211,13 +207,7 @@
             reuse += bcast.count;
           }
           else {
-#ifdef PORT_CUDA
-            cudaMalloc(&recvbuf, bcast.count * sizeof(T));
-#elif defined PORT_HIP
-            hipMalloc(&recvbuf, bcast.count * sizeof(T));
-#else
-            recvbuf = new T[bcast.count];
-#endif
+            ExaComm::allocate(recvbuf, bcast.count);
             recvoffset = 0;
             buffsize += bcast.count;
           }
@@ -295,11 +285,7 @@
             if(recver != bcast.sendid) {
               T *sendbuf_temp;
               if(myid == recver) {
-#ifdef PORT_CUDA
-                cudaMalloc(&sendbuf_temp, splitcount * sizeof(T));
-#elif defined PORT_HIP
-                hipMalloc(&sendbuf_temp, splitcount * sizeof(T));
-#endif
+                ExaComm::allocate(sendbuf_temp, splitcount);
                 buffsize += splitcount;
               }
               bcastlist.push_back(BROADCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
