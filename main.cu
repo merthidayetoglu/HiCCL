@@ -199,8 +199,6 @@ int main(int argc, char *argv[])
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       case allreduce :
-        //  for(int recver = 0; recver < numproc; recver++)
-        //    coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, recver);
         // REDUCE-SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
@@ -215,7 +213,8 @@ int main(int argc, char *argv[])
 
     // MACHINE DESCRIPTION
     int numlevel = 3;
-    int hierarchy[5] = {numproc / numgroup, 8, 4, 4, 2};
+    int groupsize = numproc / numgroup;
+    int hierarchy[5] = {groupsize, 8, 4, 4, 2};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     // INITIALIZE
@@ -225,13 +224,13 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    // coll.measure(warmup, numiter);
-    coll.report();
+    coll.measure(warmup, numiter);
+    // coll.report();
 
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
 
-    // coll.time();
+    coll.time();
   }
 
 // DEALLOCATE
