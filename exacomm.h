@@ -309,37 +309,65 @@ namespace ExaComm {
     }
 
     void time() {
-      if(command_batch.size() < 32 && printid == ROOT) {
-        printf("command_batch size %zu\n", command_batch.size());
+      if(printid == ROOT) {
+        printf("pipeline depth %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
-
+        printf("\n");
+      }
+      if(command_batch.size() < 32) {
         using Iter = typename std::list<ExaComm::Command<T>>::iterator;
         std::vector<Iter> commandptr(command_batch.size());
         for(int i = 0; i < command_batch.size(); i++)
           commandptr[i] = command_batch[i].begin();
         int command = 0;
         while(true) {
-          printf("proc %d command %d: |", printid, command);
+          if(printid == ROOT)
+            printf("global command %d: |", command);
           bool finished = true;
           for(int i = 0; i < command_batch.size(); i++) {
             if(commandptr[i] != command_batch[i].end()) {
               if(commandptr[i]->comm) {
-                printf(" %d", commandptr[i]->comm->numsend);
-                switch(commandptr[i]->comm->lib) {
-                  case CommBench::IPC : printf(" IPC |"); break;
-                  case CommBench::MPI : printf(" MPI |"); break;
-                  case CommBench::NCCL : printf(" NCL |"); break;
+                int numsend = commandptr[i]->comm->numsend;
+                int numrecv = commandptr[i]->comm->numrecv;
+                MPI_Allreduce(MPI_IN_PLACE, &numsend, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                MPI_Allreduce(MPI_IN_PLACE, &numrecv, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                if(printid == ROOT) {
+                  if(numsend) printf(" %d", numsend);
+                  else        printf("  ");
+                  if(numrecv) printf("+%d", numrecv);
+                  else        printf("  ");
+                  switch(commandptr[i]->comm->lib) {
+                    case CommBench::IPC :  printf(" IPC"); break;
+                    case CommBench::MPI :  printf(" MPI"); break;
+                    case CommBench::NCCL : printf(" NCL"); break;
+                  }
                 }
+                if(commandptr[i]->compute) {
+                  int numcomp = commandptr[i]->compute->numcomp;
+                  MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                  if(printid == ROOT)
+                    if(numcomp) printf("%d", numcomp);
+                    else        printf(" ");
+                }
+                if(printid == ROOT)
+                  printf(" |");
+	      }
+	      else if(commandptr[i]->compute) {
+                int numcomp = commandptr[i]->compute->numcomp;
+                MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                if(printid == ROOT)
+                  if(numcomp) printf("  %d  *** |", numcomp);
+                  else        printf("         |");
               }
-              if(commandptr[i]->compute)
-                printf(" %d HBM |", commandptr[i]->compute->numcomp);
               finished = false;
               commandptr[i]++;
             }
             else
-              printf("       |");
+              if(printid == ROOT)
+                printf("         |");
           }
-          printf("\n");
+          if(printid == ROOT)
+            printf("\n");
           if(finished)
             break;
           command++;
