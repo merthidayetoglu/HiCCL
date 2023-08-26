@@ -28,20 +28,6 @@ namespace ExaComm {
   size_t recycle = 0;
   size_t reuse = 0;
 
-  template <typename T>
-  void allocate(T *&buffer, size_t n) {
-#ifdef PORT_CUDA
-    cudaMalloc(&buffer, n * sizeof(T));
-#elif defined PORT_HIP
-    hipMalloc(&buffer, n * sizeof(T));
-#elif defined PORT_SYCL
-    buffer = sycl::malloc_device<T>(n, q);
-#else
-    buffer = new T[n];
-#endif
-  }
-
-
 #include "src/compute.h"
 
   template <typename T>
@@ -124,13 +110,13 @@ namespace ExaComm {
     }
 
     Comm(const MPI_Comm &comm_mpi_temp) {
-    // Comm(const MPI_Comm &comm_mpi_temp) : comm_mpi(comm_mpi_temp) {
       // INITIALIZE COMMBENCH
 #ifdef CAP_NCCL
       CommBench::Comm<T> comm(comm_mpi_temp, CommBench::NCCL);
 #else
       CommBench::Comm<T> comm(comm_mpi_temp, CommBench::MPI);
 #endif
+      MPI_Comm_rank(comm_mpi_temp, &printid);
       // DEFAULT EPOCH
       fence();
     }
@@ -310,6 +296,7 @@ namespace ExaComm {
 
     void time() {
       if(printid == ROOT) {
+        printf("********************************************\n\n");
         printf("pipeline depth %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
         printf("\n");
@@ -322,29 +309,31 @@ namespace ExaComm {
         int command = 0;
         while(true) {
           if(printid == ROOT)
-            printf("global command %d: |", command);
+            printf("proc %d command %d: |", printid, command);
           bool finished = true;
           for(int i = 0; i < command_batch.size(); i++) {
             if(commandptr[i] != command_batch[i].end()) {
               if(commandptr[i]->comm) {
                 int numsend = commandptr[i]->comm->numsend;
                 int numrecv = commandptr[i]->comm->numrecv;
-                MPI_Allreduce(MPI_IN_PLACE, &numsend, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-                MPI_Allreduce(MPI_IN_PLACE, &numrecv, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                //MPI_Allreduce(MPI_IN_PLACE, &numsend, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                //MPI_Allreduce(MPI_IN_PLACE, &numrecv, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
                 if(printid == ROOT) {
                   if(numsend) printf(" %d", numsend);
                   else        printf("  ");
                   if(numrecv) printf("+%d", numrecv);
                   else        printf("  ");
-                  switch(commandptr[i]->comm->lib) {
-                    case CommBench::IPC :  printf(" IPC"); break;
-                    case CommBench::MPI :  printf(" MPI"); break;
-                    case CommBench::NCCL : printf(" NCL"); break;
-                  }
+                  if(numsend+numrecv)
+                    switch(commandptr[i]->comm->lib) {
+                      case CommBench::IPC :  printf(" IPC"); break;
+                      case CommBench::MPI :  printf(" MPI"); break;
+                      case CommBench::NCCL : printf(" NCL"); break;
+                    }
+                  else printf("-   ");
                 }
                 if(commandptr[i]->compute) {
                   int numcomp = commandptr[i]->compute->numcomp;
-                  MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                  //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
                   if(printid == ROOT)
                     if(numcomp) printf("%d", numcomp);
                     else        printf(" ");
@@ -354,10 +343,10 @@ namespace ExaComm {
 	      }
 	      else if(commandptr[i]->compute) {
                 int numcomp = commandptr[i]->compute->numcomp;
-                MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
                 if(printid == ROOT)
                   if(numcomp) printf("  %d  *** |", numcomp);
-                  else        printf("         |");
+                  else        printf("    *    |");
               }
               finished = false;
               commandptr[i]++;

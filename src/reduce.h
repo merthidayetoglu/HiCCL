@@ -111,7 +111,7 @@
 	      }
 	      else {
                 // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d send malloc %zu\n", myid, reduce.count * sizeof(T));
-                ExaComm::allocate(outputbuf, reduce.count);
+                CommBench::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
                 buffsize += reduce.count;
 	      }
@@ -128,7 +128,7 @@
                     }
                     else {
                       // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d recv malloc %zu\n", myid, reduce.count * sizeof(T));
-                      ExaComm::allocate(recvbuf, reduce.count);
+                      CommBench::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
                       buffsize += reduce.count;
                     }
@@ -256,7 +256,7 @@
           }
         if(!sendreuse) {
 	  if(myid == sendid) {
-            allocate(sendbuf, reduce.count);
+            CommBench::allocate(sendbuf, reduce.count);
             sendoffset = 0;
             buffsize += reduce.count;
           }
@@ -282,10 +282,10 @@
 	else {
           T *recvbuf_intra;
           if(myid == reduce.recvid) {
-            allocate(recvbuf, reduce.count);
+	    CommBench::allocate(recvbuf, reduce.count);
             recvoffset = 0;
             buffsize += reduce.count;
-            allocate(recvbuf_intra, reduce.count);
+            CommBench::allocate(recvbuf_intra, reduce.count);
             buffsize += reduce.count;
           }
           reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
@@ -376,7 +376,7 @@
             if(recver != reduce.recvid) {
               T *recvbuf_temp;
               if(myid == recver) {
-                allocate(recvbuf_temp, splitcount);
+                CommBench::allocate(recvbuf_temp, splitcount);
                 buffsize += splitcount;
               }
               reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));

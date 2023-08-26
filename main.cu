@@ -129,20 +129,10 @@ int main(int argc, char *argv[])
   // ALLOCATE
   Type *sendbuf_d;
   Type *recvbuf_d;
-#ifdef PORT_CUDA
-  cudaMalloc(&sendbuf_d, count * numproc * sizeof(Type));
-  cudaMalloc(&recvbuf_d, count * numproc * sizeof(Type));
-#elif defined PORT_HIP
-  hipMalloc(&sendbuf_d, count * numproc * sizeof(Type));
-  hipMalloc(&recvbuf_d, count * numproc * sizeof(Type));
-#elif defined PORT_SYCL
-  sendbuf_d = sycl::malloc_device<Type>(count * numproc, q);
-  recvbuf_d = sycl::malloc_device<Type>(count * numproc, q);
-#else
-  sendbuf_d = new Type[count * numproc];
-  recvbuf_d = new Type[count * numproc];
-#endif
+  CommBench::allocate(sendbuf_d, count * numproc);
+  CommBench::allocate(recvbuf_d, count * numproc);
 
+  // AUXILLIARY DATA STRUCTURES
   std::vector<int> proclist;
   for(int p = 0 ; p < numproc; p++)
     proclist.push_back(p);
@@ -154,7 +144,6 @@ int main(int argc, char *argv[])
 
   // PATTERN DESRIPTION
   {
-    ExaComm::printid = myid;
     ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
 
     switch (pattern) {

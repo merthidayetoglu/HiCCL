@@ -140,7 +140,7 @@
                 }
                 else {
                   if(myid == recvid) {
-                    ExaComm::allocate(recvbuf, bcast.count);
+                    CommBench::allocate(recvbuf, bcast.count);
                     buffsize += bcast.count;
                     recvoffset = 0;
                   }
@@ -210,7 +210,7 @@
             reuse += bcast.count;
           }
           else {
-            ExaComm::allocate(recvbuf, bcast.count);
+            CommBench::allocate(recvbuf, bcast.count);
             recvoffset = 0;
             buffsize += bcast.count;
           }
@@ -288,7 +288,7 @@
             if(recver != bcast.sendid) {
               T *sendbuf_temp;
               if(myid == recver) {
-                ExaComm::allocate(sendbuf_temp, splitcount);
+                CommBench::allocate(sendbuf_temp, splitcount);
                 buffsize += splitcount;
               }
               bcastlist.push_back(BROADCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
