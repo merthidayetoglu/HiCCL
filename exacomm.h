@@ -38,29 +38,40 @@ namespace ExaComm {
     CommBench::Comm<T> *comm = nullptr;
     ExaComm::Compute<T> *compute = nullptr;
 
+    // COMMUNICATION
     Command(CommBench::Comm<T> *comm) : comm(comm) {}
+    // COMPUTATION
     Command(ExaComm::Compute<T> *compute) : compute(compute) {}
+    // COMMUNICATION + COMPUTATION
+    Command(CommBench::Comm<T> *comm, ExaComm::Compute<T> *compute) : comm(comm), compute(compute) {}
 
     void start() {
       if(comm)
         comm->start();
-      if(compute)
+      else if(compute)
         compute->start();
     }
     void wait() {
-      if(comm)
+      if(comm) {
         comm->wait();
-      if(compute)
+        if(compute)
+          compute->run();
+      }
+      else if(compute)
         compute->wait();
     }
     void run() { start(); wait(); }
     void report() {
       if(comm) {
-        if(printid == ROOT)
-          printf("COMMAND TYPE: COMMUNICATION\n");
+        if(printid == ROOT) {
+          if(compute) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
+          else        printf("COMMAND TYPE: COMMUNICATION\n");
+        }
         comm->report();
+        if(compute)
+          compute->report();
       }
-      if(compute) {
+      else if(compute) {
         if(printid == ROOT)
           printf("COMMAND TYPE: COMPUTATION\n");
         compute->report();
@@ -68,11 +79,15 @@ namespace ExaComm {
     }
     void measure(int warmup, int numiter) {
       if(comm) {
-        if(printid == ROOT)
-          printf("COMMAND TYPE: COMMUNICATION\n");
+        if(printid == ROOT) {
+          if(compute) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
+          else        printf("COMMAND TYPE: COMMUNICATION\n");
+        }
 	comm->measure(warmup, numiter);
+        if(compute)
+          compute->measure(warmup, numiter);
       }
-      if(compute) {
+      else if(compute) {
         if(printid == ROOT)
           printf("COMMAND TYPE: COMPUTATION\n");
 	compute->measure(warmup, numiter);
@@ -301,17 +316,18 @@ namespace ExaComm {
         printf("commandlist size %zu\n", command_batch[0].size());
         printf("\n");
       }
-      if(command_batch.size() < 32) {
+      int print_batch_size = (command_batch.size() > 16 ? 16 : command_batch.size());
+      {
         using Iter = typename std::list<ExaComm::Command<T>>::iterator;
-        std::vector<Iter> commandptr(command_batch.size());
-        for(int i = 0; i < command_batch.size(); i++)
+        std::vector<Iter> commandptr(print_batch_size);
+        for(int i = 0; i < print_batch_size; i++)
           commandptr[i] = command_batch[i].begin();
         int command = 0;
         while(true) {
           if(printid == ROOT)
             printf("proc %d command %d: |", printid, command);
           bool finished = true;
-          for(int i = 0; i < command_batch.size(); i++) {
+          for(int i = 0; i < print_batch_size; i++) {
             if(commandptr[i] != command_batch[i].end()) {
               if(commandptr[i]->comm) {
                 int numsend = commandptr[i]->comm->numsend;
@@ -329,14 +345,20 @@ namespace ExaComm {
                       case CommBench::MPI :  printf(" MPI"); break;
                       case CommBench::NCCL : printf(" NCL"); break;
                     }
-                  else printf("-   ");
+                  else // printf("-   ");
+                    switch(commandptr[i]->comm->lib) {
+                      case CommBench::IPC :  printf("I   "); break;
+                      case CommBench::MPI :  printf("M   "); break;
+                      case CommBench::NCCL : printf("N   "); break;
+                    }
+
                 }
                 if(commandptr[i]->compute) {
                   int numcomp = commandptr[i]->compute->numcomp;
                   //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
                   if(printid == ROOT)
-                    if(numcomp) printf("%d", numcomp);
-                    else        printf(" ");
+                    if(numcomp) printf(" %d*", numcomp);
+                    else        printf("*  ");
                 }
                 if(printid == ROOT)
                   printf(" |");
