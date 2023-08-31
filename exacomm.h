@@ -31,6 +31,56 @@ namespace ExaComm {
 #include "src/compute.h"
 
   template <typename T>
+  class Coll {
+
+     public:
+
+     CommBench::library lib;
+
+     // Communication
+     int numcomm = 0;
+     std::vector<T*> sendbuf;
+     std::vector<size_t> sendoffset;
+     std::vector<T*> recvbuf;
+     std::vector<size_t> recvoffset;
+     std::vector<size_t> count;
+     std::vector<int> sendid;
+     std::vector<int> recvid;
+
+     // Computation
+     int numcompute = 0;
+     std::vector<std::vector<T*>> inputbuf;
+     std::vector<T*> outputbuf;
+     std::vector<size_t> numreduce;
+     std::vector<int> compid;
+
+     Coll(CommBench::library lib) : lib(lib) {}
+
+     void add(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+       if(printid == ROOT)
+         printf("COMM ADDED\n");
+       this->sendbuf.push_back(sendbuf);
+       this->sendoffset.push_back(sendoffset);
+       this->recvbuf.push_back(recvbuf);
+       this->recvoffset.push_back(recvoffset);
+       this->count.push_back(count);
+       this->sendid.push_back(sendid);
+       this->recvid.push_back(recvid);
+       numcomm++;
+     }
+
+     void add(std::vector<T*> inputbuf, T* outputbuf, size_t numreduce, int compid) {
+       if(printid == ROOT)
+         printf("COMP ADDED\n");
+       this->inputbuf.push_back(inputbuf);
+       this->outputbuf.push_back(outputbuf);
+       this->numreduce.push_back(numreduce);
+       this->compid.push_back(compid);
+       numcompute++;
+     }
+  };
+
+  template <typename T>
   class Command {
 
     public:
@@ -95,6 +145,67 @@ namespace ExaComm {
     }
   };
 
+  template <typename T>
+  void implement(std::vector<std::list<Coll<T>*>> &coll_batch, std::vector<std::list<Command<T>>> &pipeline, int pipeoffset) {
+
+
+    std::vector<int> lib;
+    std::vector<int> lib_hash(CommBench::numlib);
+    {
+      for(int i = 0; i < coll_batch.size(); i++) {
+        for(auto &coll : coll_batch[i]){
+          if(printid == ROOT) printf("coll->lib: %d\n", coll->lib);
+          lib_hash[coll->lib]++;
+	}
+        for(int j = 0; j < i * pipeoffset; j++)
+          coll_batch[i].push_front(new ExaComm::Coll<T>(CommBench::MPI));
+      }
+     if(printid == ROOT) {
+        printf("libraries: ");
+        for(int i = 0; i < CommBench::numlib; i++)
+          printf("%d ", lib_hash[i]);
+        printf("\n");
+      }
+      for(int i = 0; i < CommBench::numlib; i++)
+        if(lib_hash[i]) {
+          lib_hash[i] = lib.size();
+          lib.push_back(i);
+          pipeline.push_back(std::list<Command<T>>());
+        }
+    }
+    {
+      using Iter = typename std::list<ExaComm::Coll<T>*>::iterator;
+      std::vector<Iter> coll_ptr(coll_batch.size());
+      for(int i = 0; i < coll_batch.size(); i++)
+        coll_ptr[i] = coll_batch[i].begin();
+      while(true) {
+        bool finished = true;
+        for(int i = 0; i < coll_batch.size(); i++)
+          if(coll_ptr[i] != coll_batch[i].end())
+            finished = false;
+        if(finished)
+          break;
+        std::vector<CommBench::Comm<T>*> comm_temp(lib.size());
+        std::vector<ExaComm::Compute<T>*> compute_temp(lib.size());
+        for(int i = 0; i < lib.size(); i++) {
+          comm_temp[i] = new CommBench::Comm<T>(CommBench::comm_mpi, (CommBench::library) lib[i]);
+          compute_temp[i] = new ExaComm::Compute<T>(CommBench::comm_mpi);
+        }
+        for(int i = 0; i < coll_batch.size(); i++)
+          if(coll_ptr[i] != coll_batch[i].end()) {
+            ExaComm::Coll<T> *coll = *coll_ptr[i];
+            coll_ptr[i]++;
+            for(int i = 0; i < coll->numcomm; i++)
+              comm_temp[lib_hash[coll->lib]]->add(coll->sendbuf[i], coll->sendoffset[i], coll->recvbuf[i], coll->recvoffset[i], coll->count[i], coll->sendid[i], coll->recvid[i]);
+            for(int i = 0; i < coll->numcompute; i++)
+              compute_temp[lib_hash[coll->lib]]->add(coll->inputbuf[i], coll->outputbuf[i], coll->numreduce[i], coll->compid[i]);
+          }
+        for(int i = 0; i < lib.size(); i++)
+          pipeline[i].push_back(Command<T>(comm_temp[i], compute_temp[i]));
+      }
+    }
+  }
+
 #include "src/reduce.h"
 #include "src/broadcast.h"
 
@@ -113,8 +224,9 @@ namespace ExaComm {
     std::vector<std::vector<int>> groupsize;
     std::vector<std::vector<CommBench::library>> library;
 
-    // PIPELINE
+    // FUTURE PIPELINE
     std::vector<std::list<Command<T>>> command_batch;
+    std::vector<std::list<Coll<T>*>> coll_batch;
 
     public:
 
@@ -158,10 +270,6 @@ namespace ExaComm {
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
 
-      // ALLOCATE COMMAND BATCH
-      for(int batch = 0; batch < numbatch; batch++)
-        command_batch.push_back(std::list<Command<T>>());
-
       if(printid == ROOT) {
         printf("NUMBER OF EPOCHS: %d\n", numepoch);
         for(int epoch = 0; epoch < numepoch; epoch++)
@@ -188,6 +296,11 @@ namespace ExaComm {
         printf("\n");
       }
 
+      // ALLOCATE COMMAND BATCH
+      for(int batch = 0; batch < numbatch; batch++) {
+        coll_batch.push_back(std::list<Coll<T>*>());
+        command_batch.push_back(std::list<Command<T>>());
+      }
       // FOR EACH EPOCH
       for(int epoch = 0; epoch < numepoch; epoch++) {
         // INIT REDUCTION
@@ -204,11 +317,11 @@ namespace ExaComm {
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, reduce_batch[batch], merge_list);
             // HIERARCHICAL REDUCTION RING + TREE
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, command_batch[batch]);
+            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, command_batch[batch], coll_batch[batch]);
             // COMPLETE STRIPING BY INTRA-NODE GATHER
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
-            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, command_batch[batch]);
+            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, command_batch[batch], coll_batch[batch]);
 	  }
         }
         // INIT BROADCAST
@@ -227,18 +340,12 @@ namespace ExaComm {
             groupsize_temp[0] = numproc;
             // INITIALIZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], recvbuff, 0);
+            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], coll_batch[batch], recvbuff, 0);
             // HIERARCHICAL RING + TREE
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, command_batch[batch]);
+            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, command_batch[batch], coll_batch[batch]);
           }
         }
-      }
-      // INITIALIZE BATCH PIPELINE WITH DUMMY COMMANDS
-      {
-        for(int batch = 0; batch < numbatch; batch++)
-          for(int c = 0; c < batch * pipelineoffset; c++)
-            command_batch[batch].push_front(ExaComm::Command<T>(new CommBench::Comm<T>(comm_mpi, CommBench::MPI)));
       }
       // REPORT MEMORY
       {
@@ -258,7 +365,69 @@ namespace ExaComm {
         }
       }
 
+      command_batch.clear();
+      implement(coll_batch, command_batch, pipelineoffset);
+
+      if(printid == ROOT) {
+        printf("********************************************\n\n");
+        printf("pipeline depth %zu\n", coll_batch.size());
+        printf("coll_list size %zu\n", coll_batch[0].size());
+        printf("\n");
+      }
+      {
+        int print_batch_size = (coll_batch.size() > 16 ? 16 : coll_batch.size());
+        using Iter = typename std::list<ExaComm::Coll<T>*>::iterator;
+        std::vector<Iter> coll_ptr(print_batch_size);
+        for(int i = 0; i < print_batch_size; i++)
+          coll_ptr[i] = coll_batch[i].begin();
+        int collindex = 0;
+        while(true) {
+          if(printid == ROOT)
+            printf("proc %d collindex %d: |", printid, collindex);
+          bool finished = true;
+          for(int i = 0; i < print_batch_size; i++) {
+            if(coll_ptr[i] != coll_batch[i].end()) {
+              if((*coll_ptr[i])->numcomm) {
+                if(printid == ROOT) {
+                  printf(" %d", (*coll_ptr[i])->numcomm);
+                  switch((*coll_ptr[i])->lib) {
+                    case CommBench::IPC :  printf(" IPC"); break;
+                    case CommBench::MPI :  printf(" MPI"); break;
+                    case CommBench::NCCL : printf(" NCL"); break;
+                  }
+                }
+                if((*coll_ptr[i])->numcompute) {
+                  if(printid == ROOT)
+                    printf(" %d* |", (*coll_ptr[i])->numcompute);
+                }
+                else
+                  if(printid == ROOT)
+                    printf("    |");
+              }
+              else if((*coll_ptr[i])->numcompute) {
+                //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                if(printid == ROOT)
+                  printf("  %d  *** |", (*coll_ptr[i])->numcompute);
+              }
+              else
+                if(printid == ROOT)
+                  printf("     -     |");
+              finished = false;
+              coll_ptr[i]++;
+            }
+            else
+              if(printid == ROOT)
+                printf("          |");
+          }
+          if(printid == ROOT)
+            printf("\n");
+          if(finished)
+            break;
+          collindex++;
+        }
+      }
     };
+
 
     void run() {
       using Iter = typename std::list<ExaComm::Command<T>>::iterator;
@@ -288,10 +457,38 @@ namespace ExaComm {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
       }
-      auto it = command_batch[0].begin();
-      for(int command = 0; command < command_batch[0].size(); command++) {
-        it->measure(warmup, numiter);
-        it++;
+      {
+        using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+        std::vector<Iter> commandptr(command_batch.size());
+        for(int i = 0; i < command_batch.size(); i++)
+          commandptr[i] = command_batch[i].begin();
+        while(true) {
+          bool finished = true;
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end())
+              finished = false;
+          if(finished)
+            break;
+          if(printid == ROOT) printf("******************************************* MEASURE COMMANDS ************************************************\n");
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end())
+              commandptr[i]->measure(warmup, numiter);
+          if(printid == ROOT) printf("******************************************* MEASURE STEP ************************************************\n");
+          MPI_Barrier(comm_mpi);
+          double time = MPI_Wtime();
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end())
+              commandptr[i]->start();
+          for(int i = 0; i < command_batch.size(); i++)
+            if(commandptr[i] != command_batch[i].end()) {
+              commandptr[i]->wait();
+              commandptr[i]++;
+            }
+          MPI_Barrier(comm_mpi);
+          time = MPI_Wtime() - time;
+          if(printid == ROOT)
+            printf("time: %e\n", time);
+        }
       }
     }
 
@@ -351,7 +548,6 @@ namespace ExaComm {
                       case CommBench::MPI :  printf("M   "); break;
                       case CommBench::NCCL : printf("N   "); break;
                     }
-
                 }
                 if(commandptr[i]->compute) {
                   int numcomp = commandptr[i]->compute->numcomp;
