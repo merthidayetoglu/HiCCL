@@ -276,15 +276,10 @@ namespace ExaComm {
         for(int level = 0; level < numlevel; level++) {
           printf("level %d groupsize %d library: ", level, groupsize[level]);
           switch(lib[level]) {
-            case(CommBench::IPC) :
-              printf("IPC");
-              break;
-            case(CommBench::MPI) :
-              printf("MPI");
-              break;
-            case(CommBench::NCCL) :
-              printf("NCCL");
-              break;
+            case CommBench::IPC  : printf("IPC"); break;
+            case CommBench::MPI  : printf("MPI"); break;
+            case CommBench::NCCL : printf("NCCL"); break;
+            default : break;
           }
           if(level == 0)
             if(groupsize[0] != numproc)
@@ -390,6 +385,7 @@ namespace ExaComm {
                     case CommBench::IPC :  printf(" IPC"); break;
                     case CommBench::MPI :  printf(" MPI"); break;
                     case CommBench::NCCL : printf(" NCL"); break;
+                    default : break;
                   }
                 }
                 if((*coll_ptr[i])->numcompute) {
@@ -437,7 +433,6 @@ namespace ExaComm {
             commandptr[i]->start();
             finished = false;
           }
-        // MPI_Allreduce(MPI_IN_PLACE, &finished, 1, MPI_C_BOOL, MPI_LOR, comm_mpi);
         if(finished)
           break;
         for(int i = command_batch.size() - 1; i > -1; i--)
@@ -537,20 +532,23 @@ namespace ExaComm {
                       case CommBench::IPC :  printf(" IPC"); break;
                       case CommBench::MPI :  printf(" MPI"); break;
                       case CommBench::NCCL : printf(" NCL"); break;
+                      default : break;
                     }
                   else // printf("-   ");
                     switch(commandptr[i]->comm->lib) {
                       case CommBench::IPC :  printf("I   "); break;
                       case CommBench::MPI :  printf("M   "); break;
                       case CommBench::NCCL : printf("N   "); break;
+                      default : break;
                     }
                 }
                 if(commandptr[i]->compute) {
                   int numcomp = commandptr[i]->compute->numcomp;
                   //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-                  if(printid == ROOT)
+                  if(printid == ROOT) {
                     if(numcomp) printf(" %d*", numcomp);
                     else        printf("*  ");
+                  }
                 }
                 if(printid == ROOT)
                   printf(" |");
@@ -558,9 +556,10 @@ namespace ExaComm {
 	      else if(commandptr[i]->compute) {
                 int numcomp = commandptr[i]->compute->numcomp;
                 //MPI_Allreduce(MPI_IN_PLACE, &numcomp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-                if(printid == ROOT)
+                if(printid == ROOT) {
                   if(numcomp) printf("  %d  *** |", numcomp);
                   else        printf("    *    |");
+                }
               }
               finished = false;
               commandptr[i]++;
