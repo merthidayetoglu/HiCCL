@@ -49,8 +49,6 @@
     }
   };
 
-#define COMPOSITE
-
   template <typename T>
   void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<Command<T>> &commandlist, std::list<ExaComm::Coll<T>*> &coll_list, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
 
@@ -107,35 +105,46 @@
             int recvid = sendgroup * groupsize[level] + reduce.recvid % groupsize[level];
             T* outputbuf;
             size_t outputoffset;
-            if(myid == recvid) {
-              if(recvid == reduce.recvid) {
+            if(recvid == reduce.recvid) {
+              if(myid == recvid) {
                 outputbuf = reduce.recvbuf;
                 outputoffset = reduce.recvoffset;
-	      }
-	      else {
-                // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d send malloc %zu\n", myid, reduce.count * sizeof(T));
+                reuse += reduce.count;
+              }
+              if(printid == ROOT)
+                printf("recvid %d reuses send memory\n", recvid);
+	    }
+	    else {
+              if(myid == recvid) {
                 CommBench::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
                 buffsize += reduce.count;
-	      }
+              }
+              if(printid == ROOT)
+                 printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d send malloc %zu\n", recvid, reduce.count * sizeof(T));
             }
             if(sendids.size() > 1) {
               std::vector<T*> inputbuf;
               for(auto &sendid : sendids) {
                 if(sendid != recvid) {
                   T *recvbuf;
-                  if(myid == recvid) {
-                    if(numrecvbuf < recvbuf_ptr.size()) {
+                  if(numrecvbuf < recvbuf_ptr.size()) {
+                    if(myid == recvid) {
                       recvbuf = recvbuf_ptr[numrecvbuf]; // recycle memory
                       recycle += reduce.count;
                     }
-                    else {
-                      // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ myid %d recv malloc %zu\n", myid, reduce.count * sizeof(T));
+                    if(printid == ROOT)
+                      printf("recvid %d reuses recv memory\n", recvid);
+                  }
+                  else {
+                    if(myid == recvid) {
                       CommBench::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
                       buffsize += reduce.count;
+                      numrecvbuf++;
                     }
-                    numrecvbuf++;
+                    if(printid == ROOT)
+                       printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d recv malloc %zu\n", recvid, reduce.count * sizeof(T));
                   }
                   /// ADD COMMUNICATION
                   coll_temp->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
