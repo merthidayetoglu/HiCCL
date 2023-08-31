@@ -440,7 +440,7 @@ namespace ExaComm {
         // MPI_Allreduce(MPI_IN_PLACE, &finished, 1, MPI_C_BOOL, MPI_LOR, comm_mpi);
         if(finished)
           break;
-        for(int i = 0; i < command_batch.size(); i++)
+        for(int i = command_batch.size() - 1; i > -1; i--)
           if(commandptr[i] != command_batch[i].end()) {
             commandptr[i]->wait();
             commandptr[i]++;
