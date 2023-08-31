@@ -147,8 +147,6 @@ namespace ExaComm {
 
   template <typename T>
   void implement(std::vector<std::list<Coll<T>*>> &coll_batch, std::vector<std::list<Command<T>>> &pipeline, int pipeoffset) {
-
-
     std::vector<int> lib;
     std::vector<int> lib_hash(CommBench::numlib);
     {
@@ -297,10 +295,9 @@ namespace ExaComm {
       }
 
       // ALLOCATE COMMAND BATCH
-      for(int batch = 0; batch < numbatch; batch++) {
+      for(int batch = 0; batch < numbatch; batch++)
         coll_batch.push_back(std::list<Coll<T>*>());
-        command_batch.push_back(std::list<Command<T>>());
-      }
+
       // FOR EACH EPOCH
       for(int epoch = 0; epoch < numepoch; epoch++) {
         // INIT REDUCTION
@@ -317,11 +314,11 @@ namespace ExaComm {
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, reduce_batch[batch], merge_list);
             // HIERARCHICAL REDUCTION RING + TREE
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, command_batch[batch], coll_batch[batch]);
+            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
             // COMPLETE STRIPING BY INTRA-NODE GATHER
             std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
             groupsize_temp[0] = numproc;
-            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, command_batch[batch], coll_batch[batch]);
+            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
 	  }
         }
         // INIT BROADCAST
@@ -340,10 +337,10 @@ namespace ExaComm {
             groupsize_temp[0] = numproc;
             // INITIALIZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, command_batch[batch], coll_batch[batch], recvbuff, 0);
+            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
             // HIERARCHICAL RING + TREE
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, command_batch[batch], coll_batch[batch]);
+            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch]);
           }
         }
       }
@@ -358,14 +355,13 @@ namespace ExaComm {
         if(printid == ROOT) {
           for(int p = 0; p < numproc; p++)
             printf("ExaComm Memory [%d]: %zu bytes (%.2f GB) - %.2f GB reused - %.2f GB recycled\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9, reuse_all[p] * sizeof(T) / 1.e9, recycle_all[p] * sizeof(T) / 1.e9);
-          printf("command_batch size %zu: ", command_batch.size());
-          for(int i = 0; i < command_batch.size(); i++)
-            printf("%zu ", command_batch[i].size());
+          printf("coll_batch size %zu: ", coll_batch.size());
+          for(int i = 0; i < coll_batch.size(); i++)
+            printf("%zu ", coll_batch[i].size());
           printf("\n\n");
         }
       }
 
-      command_batch.clear();
       implement(coll_batch, command_batch, pipelineoffset);
 
       if(printid == ROOT) {

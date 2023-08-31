@@ -50,7 +50,7 @@
   };
 
   template <typename T>
-  void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<Command<T>> &commandlist, std::list<ExaComm::Coll<T>*> &coll_list, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
+  void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<ExaComm::Coll<T>*> &coll_list, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
 
     int myid;
     int numproc;
@@ -69,10 +69,6 @@
       return;
    
     ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[level]); 
-    CommBench::Comm<T> *comm = new CommBench::Comm<T>(comm_mpi, lib[level]);
-    ExaComm::Compute<T> *compute = new ExaComm::Compute<T>(comm_mpi);
-    bool compute_found = false;
-    bool comm_found = false;
 
     std::vector<REDUCE<T>> reducelist_new;
 
@@ -148,8 +144,6 @@
                   }
                   /// ADD COMMUNICATION
                   coll_temp->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
-                  comm->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
-                  comm_found = true;
                   inputbuf.push_back(recvbuf);
                 }
                 else
@@ -157,22 +151,16 @@
               }
               // ADD COMPUTATION
               coll_temp->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
-              compute->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);
-              compute_found = true;
             }
 	    else {
               if(sendids[0] != recvid) {
                 /// ADD COMMUNICATION
                 coll_temp->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-                comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-                comm_found = true;
               }
               else {
                 if(level == numlevel - 1) {
                   /// ADD COMMUNICATION
                   coll_temp->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-                  comm->add(reduce.sendbuf, reduce.sendoffset, outputbuf, outputoffset, reduce.count, sendids[0], recvid);
-                  comm_found = true;
                 }
                 else {
                   outputbuf = reduce.sendbuf;
@@ -202,26 +190,12 @@
       coll_list.push_back(coll_temp);
     else
       delete coll_temp;
-#ifdef COMPOSITE
-    if(comm_found && compute_found)
-      commandlist.push_back(Command<T>(comm, compute));
-    else
-#endif
-    {
-      if(comm_found)
-        commandlist.push_back(Command<T>(comm));
-      else
-        delete comm;
-      if(compute_found)
-        commandlist.push_back(Command<T>(compute));
-      else
-        delete compute;
-    }
-    reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, commandlist, coll_list, recvbuf_ptr, 0);
+
+    reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, coll_list, recvbuf_ptr, 0);
   }
 
   template<typename T>
-  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<Command<T>> &commandlist, std::list<ExaComm::Coll<T>*> &coll_list) {
+  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<ExaComm::Coll<T>*> &coll_list) {
 
     int myid;
     int numproc;
@@ -235,10 +209,6 @@
     std::vector<REDUCE<T>> reducelist_extra;
 
     ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[0]);
-    CommBench::Comm<T> *comm_temp = new CommBench::Comm<T>(comm_mpi, lib[0]);
-    ExaComm::Compute<T> *compute_temp = new ExaComm::Compute<T>(comm_mpi);
-    bool comm_found = false;
-    bool compute_found = false;
 
     if(printid == ROOT)
       printf("number of original reductions %ld\n", reducelist.size());
@@ -324,14 +294,10 @@
           std::vector<T*> inputbuf = {recvbuf, recvbuf_intra};
           // ADD COMPUTATION
           coll_temp->add(inputbuf, reduce.recvbuf + reduce.recvoffset, reduce.count, reduce.recvid);
-          compute_temp->add(inputbuf, reduce.recvbuf + reduce.recvoffset, reduce.count, reduce.recvid);
-          compute_found = true;
           sendids_intra.push_back(reduce.recvid);
         }
         // ADD COMMUNICATION
         coll_temp->add(sendbuf, sendoffset, recvbuf, recvoffset, reduce.count, sendid, reduce.recvid);
-        comm_temp->add(sendbuf, sendoffset, recvbuf, recvoffset, reduce.count, sendid, reduce.recvid);
-        comm_found = true;
       }
       else
         reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
@@ -341,34 +307,19 @@
     }
 
     if(reducelist_extra.size())
-      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist_extra, reducelist_intra, commandlist, coll_list);
+      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist_extra, reducelist_intra, coll_list);
     else {
       // COMPLETE RING WITH INTRA-NODE TREE REDUCTION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
       std::vector<T*> recvbuff; // for memory recycling
-      reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, commandlist, coll_list, recvbuff, 0);
+      reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, coll_list, recvbuff, 0);
     }
 
     if(coll_temp->numcomm + coll_temp->numcompute)
       coll_list.push_back(coll_temp);
     else
       delete coll_temp;
-#ifdef COMPOSITE
-    if(comm_found && compute_found)
-      commandlist.push_back(Command<T>(comm_temp, compute_temp));
-    else
-#endif
-    {
-      if(comm_found)
-        commandlist.push_back(Command<T>(comm_temp));
-      else
-        delete comm_temp;
-      if(compute_found)
-        commandlist.push_back(Command<T>(compute_temp));
-      else
-        delete compute_temp;
-    }
   }
 
   template <typename T, typename P>
