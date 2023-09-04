@@ -12,7 +12,7 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
   numthread = omp_get_num_threads();
 
   double times[numiter];
-  if(myid == ROOT)
+  if(myid == printid)
     printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
   for (int iter = -warmup; iter < numiter; iter++) {
 
@@ -30,7 +30,7 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
     MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if(iter < 0) {
-      if(myid == ROOT)
+      if(myid == printid)
         printf("warmup: %e\n", time);
     }
     else
@@ -38,7 +38,7 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
   }
   std::sort(times, times + numiter,  [](const double & a, const double & b) -> bool {return a < b;});
 
-  if(myid == ROOT) {
+  if(myid == printid) {
     printf("%d measurement iterations (sorted):\n", numiter);
     for(int iter = 0; iter < numiter; iter++) {
       printf("time: %.4e", times[iter]);
@@ -86,7 +86,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
 
-  enum pattern {dummy, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
+  enum pattern {dummy, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
   T *recvbuf;
   T *sendbuf;
@@ -128,30 +128,36 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   unsigned long errorcount = 0;
   bool pass = true;
   switch(patternid) {
-    case scatter: if(myid == ROOT) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
-      for(size_t i = 0; i < count; i++) {
-        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != myid * count + i)
-          pass = false;
-      }
-      break;
-    case gather: if(myid == ROOT) printf("VERIFY GATHER ROOT = %d: ", ROOT);
+    case gather: if(myid == printid) printf("VERIFY GATHER ROOT = %d: ", ROOT);
       if(myid == ROOT)
         for(int p = 0; p < numproc; p++)
           for(size_t i = 0; i < count; i++) {
             // printf("myid %d recvbuf[%zu] = %d\n", myid, p * count + i, recvbuf[p * count + i]);
-            if(recvbuf[p * count + i] != i)
+            if(recvbuf[p * count + i] != i) {
               pass = false;
+              errorcount++;
+            }
           }
       break;
-    case broadcast: if(myid == ROOT) printf("VERIFY BCAST ROOT = %d: ", ROOT);
-      for(size_t i = 0; i < count * numproc; i++) {
+    case scatter: if(myid == printid) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
+      for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != i)
+        if(recvbuf[i] != myid * count + i) {
           pass = false;
+          errorcount++;
+        }
       }
       break;
-    case reduce: if(myid == ROOT) printf("VERIFY REDUCE ROOT = %d: ", ROOT);
+    case broadcast: if(myid == printid) printf("VERIFY BCAST ROOT = %d: ", ROOT);
+      for(size_t i = 0; i < count * numproc; i++) {
+        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        if(recvbuf[i] != i) {
+          pass = false;
+          errorcount++;
+        }
+      }
+      break;
+    case reduce: if(myid == printid) printf("VERIFY REDUCE ROOT = %d: ", ROOT);
       if(myid == ROOT)
         for(size_t i = 0; i < count * numproc; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
@@ -161,34 +167,42 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
           }
         }
       break;
-    case alltoall: if(myid == ROOT) printf("VERIFY ALL-TO-ALL: ");
+    case alltoall: if(myid == printid) printf("VERIFY ALL-TO-ALL: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[p * count + i] != myid * count + i)
+          if(recvbuf[p * count + i] != myid * count + i) {
             pass = false;
+            errorcount++;
+          }
         }
       break;
-    case allgather: if(myid == ROOT) printf("VERIFY ALL-GATHER: ");
+    case allgather: if(myid == printid) printf("VERIFY ALL-GATHER: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-          if(recvbuf[p * count + i] != i)
+          if(recvbuf[p * count + i] != i) {
             pass = false;
+            errorcount++;
+          }
         }
       break;
-    case reducescatter: if(myid == ROOT) printf("VERIFY REDUCE-SCATTER: ");
+    case reducescatter: if(myid == printid) printf("VERIFY REDUCE-SCATTER: ");
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != (myid * count + i) * numproc)
+        if(recvbuf[i] != (myid * count + i) * numproc) {
           pass = false;
+          errorcount++;
+        }
       }
       break;
-    case allreduce: if(myid == ROOT) printf("VERIFY ALL-REDUCE: ");
+    case allreduce: if(myid == printid) printf("VERIFY ALL-REDUCE: ");
       for(size_t i = 0; i < count * numproc; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
-        if(recvbuf[i] != i * numproc)
+        if(recvbuf[i] != i * numproc) {
           pass = false;
+          errorcount++;
+        }
       }
       break;
     default:
@@ -196,7 +210,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
       break;
   }
   MPI_Allreduce(MPI_IN_PLACE, &pass, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
-  if(myid == ROOT) {
+  if(myid == printid) {
     if(pass)
       printf("PASSED!\n");
     else
@@ -206,7 +220,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
     std::vector<unsigned long> errorcounts(numproc);
     MPI_Allgather(&errorcount, 1, MPI_UNSIGNED_LONG, errorcounts.data(), 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &errorcount, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
-    if(myid == ROOT) {
+    if(myid == printid) {
       printf("count %zu total errorcount %zu\n", count, errorcount);
       for(int proc = 0; proc < numproc; proc++)
         printf("proc %d errorcount:  %zu\n", proc, errorcounts[proc]);

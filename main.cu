@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
   int warmup = atoi(argv[8]);
   int numiter = atoi(argv[9]);
 
-  enum pattern {pt2pt, scatter, gather, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
+  enum pattern {pt2pt, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
   // PRINT NUMBER OF PROCESSES AND THREADS
   if(myid == ROOT)
@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
 
     printf("Pattern: ");
     switch(pattern) {
-      case scatter       : printf("Scatter\n");        break;
       case gather        : printf("Gather\n");         break;
+      case scatter       : printf("Scatter\n");        break;
       case broadcast     : printf("Broadcast\n");      break;
       case reduce        : printf("Reduce\n");         break;
       case alltoall      : printf("All-to-All\n");     break;
@@ -144,35 +144,37 @@ int main(int argc, char *argv[])
 
   // PATTERN DESRIPTION
   {
-    ExaComm::Comm<Type> coll(MPI_COMM_WORLD);
+    CommBench::printid = -1;
+    ExaComm::printid = 0;
+    ExaComm::Comm<Type> coll;
 
     switch (pattern) {
-      case scatter :
-        for(int recver = 0; recver < numproc; recver++)
-          coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, ROOT, recver);
-        break;
       case gather :
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(sendbuf_d, 0, recvbuf_d, sender * count, count, sender, ROOT);
         break;
+      case scatter :
+        for(int recver = 0; recver < numproc; recver++)
+          coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, ROOT, recver);
+        break;
       case broadcast :
         coll.add_bcast(sendbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);
         // SCATTER + ALL-GATHER
-        /*for(int recver = 0; recver < numproc; recver++)
+        /* for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, ROOT, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]); */
         break;
       case reduce :
         coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
         // REDUCE-SCATTER + GATHER
-	/*for(int recver = 0; recver < numproc; recver++)
+	/* for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
         coll.fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
-            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT);*/
+            coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT); */
         break;
       case alltoall :
         for(int sender = 0; sender < numproc; sender++)
@@ -213,13 +215,8 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
-    coll.measure(warmup, numiter);
-    // coll.report();
-
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
-
-    coll.time();
   }
 
 // DEALLOCATE

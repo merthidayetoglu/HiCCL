@@ -74,14 +74,14 @@
 
     //  SELF COMMUNICATION
     if(level == numlevel) {
-      if(printid == ROOT)
-         printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
+      // if(printid == ROOT)
+      //   printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
       for(auto bcast : bcastlist)
         for(auto recvid : bcast.recvids) {
           coll_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvid);
         }
-      if(printid == ROOT)
-        printf("\n");
+      // if(printid == ROOT)
+      //   printf("\n");
     }
     else {
       int numgroup = numproc / groupsize[level];
@@ -123,8 +123,8 @@
                 bool found = false;
                 for(auto it = recvids.begin(); it != recvids.end(); ++it) {
                   if(*it == recvid) {
-                    if(printid == ROOT)
-                      printf("******************************************************************************************* found recvid %d\n", *it);
+                    //if(printid == ROOT)
+                    //  printf("******************************************************************************************* found recvid %d\n", *it);
                     recvbuf = bcast.recvbuf;
                     recvoffset = bcast.recvoffset;
                     found = true;
@@ -142,8 +142,8 @@
                     buffsize += bcast.count;
                     recvoffset = 0;
                   }
-                  if(printid == ROOT)
-                    printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates\n", recvid, myid);
+                  //if(printid == ROOT)
+                  //  printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates\n", recvid, myid);
                 }
                 coll_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
                 if(recvids.size())
@@ -184,8 +184,8 @@
         else
           recvids_extra.push_back(recvid);
       }
-      if(printid == ROOT)
-        printf("recvids_intra: %zu recvids_extra: %zu\n", recvids_intra.size(), recvids_extra.size());
+      // if(printid == ROOT)
+      //   printf("recvids_intra: %zu recvids_extra: %zu\n", recvids_intra.size(), recvids_extra.size());
       if(recvids_intra.size())
         bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));
       if(recvids_extra.size()) {
@@ -257,12 +257,12 @@
       else
         bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
     }
-    if(printid == ROOT) {
+    /*if(printid == ROOT) {
       printf("broadcast numstripe %d stripeoffset %d groupsize: %d numgroups: %d\n", numstripe, stripeoffset, nodesize, numproc / nodesize);
       printf("number of original broadcasts: %zu\n", bcastlist.size());
       printf("number of intra-node broadcast: %zu number of inter-node broadcast: %zu\n", bcastlist_intra.size(), bcastlist_inter.size());
       printf("\n");
-    }
+    }*/
     // CLEAR BROADCASTLIST
     bcastlist.clear();
     // ADD INTRA-NODE BROADCAST DIRECTLY (IF ANY)

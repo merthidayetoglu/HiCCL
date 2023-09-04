@@ -41,28 +41,28 @@
     std::vector<hipStream_t*> stream;
 #endif
 
-    Compute(const MPI_Comm &comm_mpi_temp) {
-      // MPI_Comm_dup(comm_mpi_temp, &comm_mpi); // CREATE SEPARATE COMMUNICATOR EXPLICITLY
-    }
-
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
       int myid;
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
-      if(myid == compid) {
-        MPI_Send(&outputbuf, sizeof(T*), MPI_BYTE, ROOT, 0, comm_mpi);
-        for(int in = 0; in < inputbuf.size(); in++)
-          MPI_Send(inputbuf.data() + in, sizeof(T*), MPI_BYTE, ROOT, 0, comm_mpi);
-      }
-      if(printid == ROOT) {
-        T *outputbuf;
-        MPI_Recv(&outputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
-        printf("add compute (%d) outputbuf %p, count %zu\n", compid, outputbuf, count);
-        for(int in = 0; in < inputbuf.size(); in++) {
-          T *inputbuf;
-          MPI_Recv(&inputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
-          printf("                 inputbuf %p\n", inputbuf);
+
+      int printid = CommBench::printid;
+      if(printid > -1 && printid < numproc) {
+        if(myid == compid) {
+          MPI_Send(&outputbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+          for(int in = 0; in < inputbuf.size(); in++)
+            MPI_Send(inputbuf.data() + in, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+        }
+        if(myid == printid) {
+          T *outputbuf;
+          MPI_Recv(&outputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
+          printf("add compute (%d) outputbuf %p, count %zu\n", compid, outputbuf, count);
+          for(int in = 0; in < inputbuf.size(); in++) {
+            T *inputbuf;
+            MPI_Recv(&inputbuf, sizeof(T*), MPI_BYTE, compid, 0, comm_mpi, MPI_STATUS_IGNORE);
+            printf("                 inputbuf %p\n", inputbuf);
+          }
         }
       }
       if(myid == compid) {
