@@ -23,7 +23,7 @@
 namespace ExaComm {
 
   const MPI_Comm &comm_mpi = CommBench::comm_mpi;
-  int printid = 0;
+  int printid = -1;
 
   size_t buffsize = 0;
   size_t recycle = 0;

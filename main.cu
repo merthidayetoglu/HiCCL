@@ -20,7 +20,7 @@
 #include <mpi.h>
 #include <omp.h>
 
-#define ROOT 0
+#define ROOT 5
 
 // HEADERS
  #include <nccl.h>
@@ -142,12 +142,12 @@ int main(int argc, char *argv[])
       if(recver != sender)
         recvids[sender].push_back(recver);
 
-  // PATTERN DESRIPTION
+  // COLLECTIVE COMMUNICATION
   {
-    CommBench::printid = -1;
-    ExaComm::printid = 0;
+    ExaComm::printid = ROOT;
     ExaComm::Comm<Type> coll;
 
+    // PATTERN DESRIPTION
     switch (pattern) {
       case gather :
         for(int sender = 0; sender < numproc; sender++)
@@ -203,10 +203,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 3;
+    int numlevel = 4;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 8, 4, 4, 2};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int hierarchy[5] = {groupsize, 16, 8, 4, 2};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
 
     // INITIALIZE
     double time = MPI_Wtime();
