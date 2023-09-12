@@ -56,7 +56,7 @@ namespace ExaComm {
 
     public:
 
-    void fence() {
+    void add_fence() {
       bcast_epoch.push_back(std::vector<BROADCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
       numepoch++;
@@ -70,7 +70,7 @@ namespace ExaComm {
       CommBench::Comm<T> comm(CommBench::MPI);
 #endif
       // DEFAULT EPOCH
-      fence();
+      this->add_fence();
     }
 
     // ADD FUNCTIONS FOR BROADCAST AND REDUCE PRIMITIVES
@@ -122,6 +122,28 @@ namespace ExaComm {
 
       // FOR EACH EPOCH
       for(int epoch = 0; epoch < numepoch; epoch++) {
+        // INIT BROADCAST
+        std::vector<BROADCAST<T>> &bcastlist = bcast_epoch[epoch];
+        if(bcastlist.size())
+        {
+          // PARTITION INTO BATCHES
+          std::vector<std::vector<BROADCAST<T>>> bcast_batch(numbatch);
+          ExaComm::batch(bcastlist, numbatch, bcast_batch);
+          // FOR EACH BATCH
+          for(int batch = 0; batch < numbatch; batch++) {
+            // STRIPE BROADCAST
+            std::vector<REDUCE<T>> split_list;
+            ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
+            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+            groupsize_temp[0] = numproc;
+            // INITIALIZE STRIPING BY INTRA-NODE SCATTER
+            std::vector<T*> recvbuff; // for memory recycling
+            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            // HIERARCHICAL RING + TREE
+            std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
+            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch]);
+          }
+        }
         // INIT REDUCTION
         std::vector<REDUCE<T>> &reducelist = reduce_epoch[epoch];
         if(reducelist.size())
@@ -143,35 +165,10 @@ namespace ExaComm {
             ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
 	  }
         }
-        // INIT BROADCAST
-        std::vector<BROADCAST<T>> &bcastlist = bcast_epoch[epoch];
-        if(bcastlist.size())
-        {
-          // PARTITION INTO BATCHES
-          std::vector<std::vector<BROADCAST<T>>> bcast_batch(numbatch);
-          ExaComm::batch(bcastlist, numbatch, bcast_batch);
-          // FOR EACH BATCH
-          for(int batch = 0; batch < numbatch; batch++) {
-            // STRIPE BROADCAST
-            std::vector<REDUCE<T>> split_list;
-	    ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
-            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-            groupsize_temp[0] = numproc;
-            // INITIALIZE STRIPING BY INTRA-NODE SCATTER
-            std::vector<T*> recvbuff; // for memory recycling
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
-            // HIERARCHICAL RING + TREE
-            std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch]);
-          }
-        }
       }
-
       // IMPLEMENT WITH COMMBENCH
       implement(coll_batch, command_batch, pipelineoffset);
-
-    };
-
+    }
 
     void run() {
       using Iter = typename std::list<ExaComm::Command<T>>::iterator;
@@ -398,65 +395,4 @@ namespace ExaComm {
 
 #include "src/bench.h"
 
-  /*template <typename T>
-  void run_concurrent(std::vector<std::list<CommBench::Comm<T>*>> &commlist) {
-
-    using Iter = typename std::list<CommBench::Comm<T>*>::iterator;
-    std::vector<Iter> commptr(commlist.size());
-    for(int i = 0; i < commlist.size(); i++)
-      commptr[i] = commlist[i].begin();
-
-    for(int i = 0; i < commlist.size(); i++)
-      if(commptr[i] != commlist[i].end()) {
-        // fprintf(pFile, "start i %d init\n", i);
-        (*commptr[i])->start();
-      }
-
-    bool finished = false;
-    while(!finished) {
-      finished = true;
-      for(int i = 0; i < commlist.size(); i++) {
-        if(commptr[i] != commlist[i].end()) {
-          if(!(*commptr[i])->test()) {
-            // fprintf(pFile, "test %d\n", i);
-            finished = false;
-          }
-          else {
-            // fprintf(pFile, "wait %d\n", i);
-            (*commptr[i])->wait();
-            commptr[i]++;
-            if(commptr[i] != commlist[i].end()) {
-              // fprintf(pFile, "start next %d\n", i);
-              (*commptr[i])->start();
-              finished = false;
-            }
-            else {
-              ; //fprintf(pFile, "i %d is finished\n", i);
-            }
-          }
-        }
-      }
-    }
-  }*/
-
-/*  template <typename T>
-  void run_commandlist(std::list<Command<T>> &commandlist) {
-    for(auto comm : commandlist) {
-      switch(comm.com) {
-        case(command::start) :
-          comm.comm->start();
-          break;
-        case(command::wait) :
-          comm.comm->wait();
-          break;
-      }
-    }
-  }
-
-  template <typename T>
-  void run_commlist(std::list<CommBench::Comm<T>*> &commlist) {
-    for(auto comm : commlist) {
-      comm->run();
-    }
-  }*/
 }

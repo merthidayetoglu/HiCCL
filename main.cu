@@ -20,7 +20,7 @@
 #include <mpi.h>
 #include <omp.h>
 
-#define ROOT 5
+#define ROOT 0
 
 // HEADERS
  #include <nccl.h>
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
         // SCATTER + ALL-GATHER
         /* for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, ROOT, recver);
-        coll.fence();
+        coll.add_fence();
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]); */
         break;
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         // REDUCE-SCATTER + GATHER
 	/* for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
-        coll.fence();
+        coll.add_fence();
         for(int sender = 0; sender < numproc; sender++)
           if(sender != ROOT)
             coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, ROOT); */
@@ -190,10 +190,16 @@ int main(int argc, char *argv[])
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, 0, count, proclist, recver);
         break;
       case allreduce :
+        // REDUCE + BROADCAST
+        /*Type *tempbuf_d;
+        CommBench::allocate(tempbuf_d, count * numproc);
+        coll.add_reduce(sendbuf_d, 0, tempbuf_d, 0, count * numproc, proclist, ROOT);
+        coll.add_fence();
+        coll.add_bcast(tempbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, proclist);*/
         // REDUCE-SCATTER + ALL-GATHER
         for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
-        coll.fence();
+        coll.add_fence();
         for(int sender = 0; sender < numproc; sender++)
           coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
         break;
@@ -205,7 +211,7 @@ int main(int argc, char *argv[])
     // MACHINE DESCRIPTION
     int numlevel = 4;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 16, 8, 4, 2};
+    int hierarchy[5] = {groupsize, 16, 8, 4, 1};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
 
     // INITIALIZE
