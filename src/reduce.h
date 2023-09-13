@@ -74,11 +74,11 @@
 
     int numgroup = numproc / groupsize[level];
 
-    //if(printid == ROOT) {
+    //if(printid == printid) {
     //  printf("level %d groupsize %d numgroup %d\n", level, groupsize[level], numgroup);
     //}
     // for(auto &reduce : reducelist)
-    //  reduce.report(ROOT);
+    //  reduce.report(printid);
 
     {
       for(auto reduce : reducelist) {
@@ -92,7 +92,7 @@
             if(sendid / groupsize[level] == sendgroup)
               sendids.push_back(sendid);
           if(sendids.size()) {
-            /*if(printid == ROOT) {
+            /*if(printid == printid) {
               printf("recvgroup: %d recvid: %d sendgroup: %d sendids: ", recvgroup, reduce.recvid, sendgroup);
               for(auto sendid : sendids)
                 printf("%d ", sendid);
@@ -107,7 +107,7 @@
                 outputoffset = reduce.recvoffset;
                 reuse += reduce.count;
               }
-              // if(printid == ROOT)
+              // if(printid == printid)
               //   printf("recvid %d reuses send memory\n", recvid);
 	    }
 	    else {
@@ -116,7 +116,7 @@
                 outputoffset = 0;
                 buffsize += reduce.count;
               }
-              // if(printid == ROOT)
+              // if(printid == printid)
               //    printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d send malloc %zu\n", recvid, reduce.count * sizeof(T));
             }
             if(sendids.size() > 1) {
@@ -129,7 +129,7 @@
                       recvbuf = recvbuf_ptr[numrecvbuf]; // recycle memory
                       recycle += reduce.count;
                     }
-                    //if(printid == ROOT)
+                    //if(printid == printid)
                     //  printf("recvid %d reuses recv memory\n", recvid);
                   }
                   else {
@@ -139,7 +139,7 @@
                       buffsize += reduce.count;
                       numrecvbuf++;
                     }
-                    //if(printid == ROOT)
+                    //if(printid == printid)
                     //   printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d recv malloc %zu\n", recvid, reduce.count * sizeof(T));
                   }
                   /// ADD COMMUNICATION
@@ -202,7 +202,7 @@
     MPI_Comm_rank(comm_mpi, &myid);
     MPI_Comm_size(comm_mpi, &numproc);
 
-    //if(printid == ROOT)
+    //if(printid == printid)
    //   printf("number of original reductions %ld\n", reducelist.size());
 
     // std::vector<REDUCE<T>> reducelist_intra;
@@ -210,10 +210,10 @@
 
     ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[0]);
 
-    //if(printid == ROOT)
+    //if(printid == printid)
     //  printf("number of original reductions %ld\n", reducelist.size());
     for(auto &reduce : reducelist) {
-      //if(printid == ROOT)
+      //if(printid == printid)
       //  printf("reduce recvid: %d numsend: %ld\n", reduce.recvid, reduce.sendids.size());
       int recvnode = reduce.recvid / groupsize[0];
       std::vector<int> sendids_intra;
@@ -225,7 +225,7 @@
         else
           sendids_extra.push_back(sendid);
       }
-      //if(printid == ROOT)
+      //if(printid == printid)
       //  printf("recvid %d numsend %ld sendids_intra: %zu sendids_extra: %zu\n", reduce.recvid, reduce.sendids.size(), sendids_intra.size(), sendids_extra.size());
       if(sendids_extra.size()) {
         int numnode = numproc / groupsize[0];
@@ -234,7 +234,7 @@
         for(auto &sendid : reduce.sendids)
           sendids[sendid / groupsize[0]].push_back(sendid);
         int sendid = sendnode * groupsize[0] + reduce.recvid % groupsize[0];
-        /*if(printid == ROOT) {
+        /*if(printid == printid) {
           printf("****************** recvnode %d recvid %d sendnode %d sendid %d\n", recvnode, reduce.recvid, sendnode, sendid);
           for(int node = 0; node < numnode; node++) {
             printf("for node %d / %d: ", node, numnode);
@@ -253,7 +253,7 @@
             sendoffset = reduce.sendoffset;
             sendreuse = true;
             sendids[sendnode].clear();
-            //if(printid == ROOT)
+            //if(printid == printid)
             //  printf("proc %d reuse %ld\n", sendid, reduce.count);
           }
         if(!sendreuse) {
@@ -262,7 +262,7 @@
             sendoffset = 0;
             buffsize += reduce.count;
           }
-          //if(printid == ROOT)
+          //if(printid == printid)
           //  printf("proc %d allocate %ld\n", sendid, reduce.count);
         }
         std::vector<int> sendids_extra;
@@ -271,7 +271,7 @@
             for(auto &sendid: sendids[node])
               sendids_extra.push_back(sendid);
         reducelist_extra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, sendbuf, sendoffset, reduce.count, sendids_extra, sendid));
-        //if(printid == ROOT)
+        //if(printid == printid)
         //  printf("recvid %d sendids_intra: %zu sendids_extra: %zu\n", reduce.recvid, sendids_intra.size(), sendids_extra.size());
         // FOR RECIEVING NODE
         T *recvbuf;
@@ -302,7 +302,7 @@
       else
         reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
     }
-    /*if(printid == ROOT) {
+    /*if(printid == printid) {
       printf("intra reductions: %ld extra reductions: %ld\n\n", reducelist_intra.size(), reducelist_extra.size());
     }*/
 
@@ -349,12 +349,6 @@
       else
         reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, reduce.recvbuf, reduce.recvoffset, reduce.count, reduce.sendids, reduce.recvid));
     }
-    /*if(printid == ROOT) {
-      printf("reduction numstripe %d stripeoffset %d groupsize: %d numgroups: %d\n", numstripe, stripeoffset, nodesize, numproc / nodesize);
-      printf("number of original reductions: %zu\n", reducelist.size());
-      printf("number of intra-node reductions: %zu number of extra-node reductions: %zu\n", reducelist_intra.size(), reducelist_inter.size());
-      printf("\n");
-    }*/
     // CLEAR REDUCELIST
     reducelist.clear();
     // ADD INTRA-NODE REDUCTION DIRECTLY (IF ANY)
@@ -371,17 +365,22 @@
           int recver = recvnode * nodesize + stripe * stripeoffset;
           size_t splitcount = reduce.count / numstripe + (stripe < reduce.count % numstripe ? 1 : 0);
           if(splitcount) {
+            T *recvbuf;
+            size_t recvoffset;
             if(recver != reduce.recvid) {
-              T *recvbuf_temp;
               if(myid == recver) {
-                CommBench::allocate(recvbuf_temp, splitcount);
+                CommBench::allocate(recvbuf, splitcount);
                 buffsize += splitcount;
+                recvoffset = 0;
               }
-              reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf_temp, 0, splitcount, reduce.sendids, recver));
-              merge_list.push_back(P(recvbuf_temp, 0, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
+              merge_list.push_back(P(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
             }
             else
-              reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, reduce.sendids, recver));
+              if(myid == recver) {
+                recvbuf = reduce.recvbuf;
+                recvoffset = reduce.recvoffset + splitoffset;
+              }
+            reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf, recvoffset, splitcount, reduce.sendids, recver));
             splitoffset += splitcount;
           }
           else

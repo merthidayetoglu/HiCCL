@@ -3,8 +3,8 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
   int myid;
   int numproc;
-  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-  MPI_Comm_size(MPI_COMM_WORLD, &numproc);
+  MPI_Comm_rank(comm_mpi, &myid);
+  MPI_Comm_size(comm_mpi, &numproc);
 
   int numthread = -1;
   #pragma omp parallel
@@ -21,14 +21,14 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 #elif defined PORT_HIP
     hipDeviceSynchronize();
 #endif
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(comm_mpi);
     double time = MPI_Wtime();
 
     comm.run();
 
     time = MPI_Wtime() - time;
 
-    MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, comm_mpi);
     if(iter < 0) {
       if(myid == printid)
         printf("warmup: %e\n", time);
@@ -79,12 +79,12 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 }
 
 template <typename T, typename Comm>
-void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &comm) {
+void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root, Comm &comm) {
 
   int myid;
   int numproc;
-  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-  MPI_Comm_size(MPI_COMM_WORLD, &numproc);
+  MPI_Comm_rank(comm_mpi, &myid);
+  MPI_Comm_size(comm_mpi, &numproc);
 
   enum pattern {dummy, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
@@ -113,7 +113,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   hipMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), hipMemcpyHostToDevice, stream);
   hipStreamSynchronize(stream);
 #endif
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(comm_mpi);
 
   comm.run();
 
@@ -128,8 +128,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   unsigned long errorcount = 0;
   bool pass = true;
   switch(patternid) {
-    case gather: if(myid == printid) printf("VERIFY GATHER ROOT = %d: ", ROOT);
-      if(myid == ROOT)
+    case gather: if(myid == printid) printf("VERIFY GATHER ROOT = %d: ", root);
+      if(myid == root)
         for(int p = 0; p < numproc; p++)
           for(size_t i = 0; i < count; i++) {
             // printf("myid %d recvbuf[%zu] = %d\n", myid, p * count + i, recvbuf[p * count + i]);
@@ -139,7 +139,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
             }
           }
       break;
-    case scatter: if(myid == printid) printf("VERIFY SCATTER ROOT = %d: ", ROOT);
+    case scatter: if(myid == printid) printf("VERIFY SCATTER ROOT = %d: ", root);
       for(size_t i = 0; i < count; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != myid * count + i) {
@@ -148,7 +148,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
         }
       }
       break;
-    case broadcast: if(myid == printid) printf("VERIFY BCAST ROOT = %d: ", ROOT);
+    case broadcast: if(myid == printid) printf("VERIFY BCAST ROOT = %d: ", root);
       for(size_t i = 0; i < count * numproc; i++) {
         // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
         if(recvbuf[i] != i) {
@@ -157,8 +157,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
         }
       }
       break;
-    case reduce: if(myid == printid) printf("VERIFY REDUCE ROOT = %d: ", ROOT);
-      if(myid == ROOT)
+    case reduce: if(myid == printid) printf("VERIFY REDUCE ROOT = %d: ", root);
+      if(myid == root)
         for(size_t i = 0; i < count * numproc; i++) {
           // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
           if(recvbuf[i] != i * numproc) {
@@ -209,7 +209,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
       pass = false;
       break;
   }
-  MPI_Allreduce(MPI_IN_PLACE, &pass, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &pass, 1, MPI_C_BOOL, MPI_LAND, comm_mpi);
   if(myid == printid) {
     if(pass)
       printf("PASSED!\n");
@@ -218,8 +218,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, Comm &com
   }
   if(!pass) {
     std::vector<unsigned long> errorcounts(numproc);
-    MPI_Allgather(&errorcount, 1, MPI_UNSIGNED_LONG, errorcounts.data(), 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
-    MPI_Allreduce(MPI_IN_PLACE, &errorcount, 1, MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allgather(&errorcount, 1, MPI_UNSIGNED_LONG, errorcounts.data(), 1, MPI_UNSIGNED_LONG, comm_mpi);
+    MPI_Allreduce(MPI_IN_PLACE, &errorcount, 1, MPI_UNSIGNED_LONG, MPI_SUM, comm_mpi);
     if(myid == printid) {
       printf("count %zu total errorcount %zu\n", count, errorcount);
       for(int proc = 0; proc < numproc; proc++)

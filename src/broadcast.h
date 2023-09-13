@@ -74,13 +74,13 @@
 
     //  SELF COMMUNICATION
     if(level == numlevel) {
-      // if(printid == ROOT)
+      // if(printid == printid)
       //   printf("************************************ leaf level %d groupsize %d\n", level, groupsize[level - 1]);
       for(auto bcast : bcastlist)
         for(auto recvid : bcast.recvids) {
           coll_temp->add(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvid);
         }
-      // if(printid == ROOT)
+      // if(printid == printid)
       //   printf("\n");
     }
     else {
@@ -116,14 +116,14 @@
               }
               if(recvids.size()) {
                 int recvid = recvgroup * groupsize[level] + bcast.sendid % groupsize[level];
-                // if(printid == ROOT)
+                // if(printid == printid)
                 //  printf("level %d groupsize %d numgroup %d sendgroup %d recvgroup %d recvid %d\n", level, groupsize[level], numgroup, sendgroup, recvgroup, recvid);
                 T *recvbuf;
                 size_t recvoffset;
                 bool found = false;
                 for(auto it = recvids.begin(); it != recvids.end(); ++it) {
                   if(*it == recvid) {
-                    //if(printid == ROOT)
+                    //if(printid == printid)
                     //  printf("******************************************************************************************* found recvid %d\n", *it);
                     recvbuf = bcast.recvbuf;
                     recvoffset = bcast.recvoffset;
@@ -142,7 +142,7 @@
                     buffsize += bcast.count;
                     recvoffset = 0;
                   }
-                  //if(printid == ROOT)
+                  //if(printid == printid)
                   //  printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates\n", recvid, myid);
                 }
                 coll_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf,  recvoffset, bcast.count, bcast.sendid, recvid);
@@ -184,7 +184,7 @@
         else
           recvids_extra.push_back(recvid);
       }
-      // if(printid == ROOT)
+      // if(printid == printid)
       //   printf("recvids_intra: %zu recvids_extra: %zu\n", recvids_intra.size(), recvids_extra.size());
       if(recvids_intra.size())
         bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, recvids_intra));
@@ -257,12 +257,6 @@
       else
         bcastlist_intra.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
     }
-    /*if(printid == ROOT) {
-      printf("broadcast numstripe %d stripeoffset %d groupsize: %d numgroups: %d\n", numstripe, stripeoffset, nodesize, numproc / nodesize);
-      printf("number of original broadcasts: %zu\n", bcastlist.size());
-      printf("number of intra-node broadcast: %zu number of inter-node broadcast: %zu\n", bcastlist_intra.size(), bcastlist_inter.size());
-      printf("\n");
-    }*/
     // CLEAR BROADCASTLIST
     bcastlist.clear();
     // ADD INTRA-NODE BROADCAST DIRECTLY (IF ANY)
@@ -270,26 +264,47 @@
       bcastlist.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
 
     // ADD INTER-NODE BROADCAST BY STRIPING
-    if(bcastlist_inter.size())
-    {
+    if(bcastlist_inter.size()) {
       for(auto &bcast : bcastlist_inter) {
         int sendgroup = bcast.sendid / nodesize;
         size_t splitoffset = 0;
         for(int stripe = 0; stripe < numstripe; stripe++) {
-          int recver = sendgroup * nodesize + stripe * stripeoffset;
+          int sender = sendgroup * nodesize + stripe * stripeoffset;
           size_t splitcount = bcast.count / numstripe + (stripe < bcast.count % numstripe ? 1 : 0);
           if(splitcount) {
-            if(recver != bcast.sendid) {
-              T *sendbuf_temp;
-              if(myid == recver) {
-                CommBench::allocate(sendbuf_temp, splitcount);
-                buffsize += splitcount;
+            T *sendbuf;
+            size_t sendoffset;
+            std::vector<int> recvids = bcast.recvids;
+            if(sender != bcast.sendid) {
+              bool found = false;
+              // RECYCLE
+              for(auto it = recvids.begin(); it < recvids.end(); it++) {
+                if(*it == sender) {
+                  if(myid == sender) {
+                    sendbuf = bcast.recvbuf;
+                    sendoffset = bcast.recvoffset + splitoffset;
+                  }
+                  recvids.erase(it);
+                  found = true;
+                  break;
+                }
               }
-              bcastlist.push_back(BROADCAST<T>(sendbuf_temp, 0, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, recver, bcast.recvids));
-              split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf_temp, 0, splitcount, bcast.sendid, recver));
+              if(!found)
+                if(myid == sender) {
+                  CommBench::allocate(sendbuf, splitcount);
+                  buffsize += splitcount;
+                  sendoffset = 0;
+                }
+              split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf, sendoffset, splitcount, bcast.sendid, sender));
             }
-            else
-              bcastlist.push_back(BROADCAST<T>(bcast.sendbuf, bcast.sendoffset + splitoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, bcast.sendid, bcast.recvids));
+            else {
+              if(myid == sender) {
+                sendbuf = bcast.sendbuf;
+                sendoffset = bcast.sendoffset + splitoffset;
+                reuse += splitcount;
+              }
+            }
+            bcastlist.push_back(BROADCAST<T>(sendbuf, sendoffset, bcast.recvbuf, bcast.recvoffset + splitoffset, splitcount, sender, recvids));
             splitoffset += splitcount;
           }
           else

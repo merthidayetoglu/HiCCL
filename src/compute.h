@@ -121,7 +121,7 @@
       for(int comp = 0; comp < numcomp; comp++)
         numinput += inputbuf[comp].size();
       MPI_Allgather(&numinput, 1, MPI_INT, numinput_all.data(), 1, MPI_INT, MPI_COMM_WORLD);
-      if(printid == ROOT) {
+      if(myid == printid) {
         printf("numcomp: ");
         for(int p = 0; p < numproc; p++)
           printf("%d(%d) ", numcomp_all[p], numinput_all[p]);
@@ -131,9 +131,13 @@
     }
 
     void measure(int warmup, int numiter) {
+      int myid;
+      int numproc;
+      MPI_Comm_rank(comm_mpi, &myid);
+      MPI_Comm_size(comm_mpi, &numproc);
       this->report();
       double times[numiter];
-      if(printid == ROOT) {
+      if(myid == printid) {
         printf("Measure Reduction Kernel\n");
         printf("%d warmup iterations (in order)\n", warmup);
       }
@@ -152,7 +156,7 @@
         MPI_Allreduce(MPI_IN_PLACE, &start, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
         if(iter < 0) {
-          if(printid == ROOT)
+          if(myid == printid)
             printf("startup %.2e warmup: %e\n", start, time);
         }
         else
@@ -165,7 +169,7 @@
         data += count[comp] * sizeof(T) * (inputbuf[comp].size() + 1);
       MPI_Allreduce(MPI_IN_PLACE, &data, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
 
-      if(printid == ROOT) {
+      if(myid == printid) {
         printf("%d measurement iterations (sorted):\n", numiter);
         for(int iter = 0; iter < numiter; iter++) {
           printf("time: %.4e", times[iter]);

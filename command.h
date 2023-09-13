@@ -93,7 +93,7 @@
     }
 
     std::vector<std::list<Coll<T>*>> coll_pipeline;
-    std::list<Coll<T>*> coll_mixed;
+    std::vector<Coll<T>*> coll_mixed;
 
     std::vector<int> lib;
     std::vector<int> lib_hash(CommBench::numlib);
@@ -161,8 +161,14 @@
     }
 
     // REPORT COMPOSITE PIPELINE
-    for(auto &coll : coll_mixed)
-      coll->report();
+    for(int i = 0; i < coll_mixed.size(); i++)
+      if(i < coll_batch[0].size() || i >= coll_mixed.size() - coll_batch[0].size()) {
+        if(myid == printid)
+          printf("COMPOSITE %d\n", i);
+        coll_mixed[i]->report();
+      }
+    //for(auto &coll : coll_mixed)
+    //  coll->report();
     report_pipeline(coll_pipeline);
   }
 

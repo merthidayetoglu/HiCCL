@@ -120,12 +120,15 @@ namespace ExaComm {
       for(int batch = 0; batch < numbatch; batch++)
         coll_batch.push_back(std::list<Coll<T>*>());
 
+      // TEMP HIERARCHY FOR TREE
+      std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
+      groupsize_temp[0] = numproc;
+
       // FOR EACH EPOCH
       for(int epoch = 0; epoch < numepoch; epoch++) {
         // INIT BROADCAST
         std::vector<BROADCAST<T>> &bcastlist = bcast_epoch[epoch];
-        if(bcastlist.size())
-        {
+        if(bcastlist.size()) {
           // PARTITION INTO BATCHES
           std::vector<std::vector<BROADCAST<T>>> bcast_batch(numbatch);
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
@@ -134,8 +137,6 @@ namespace ExaComm {
             // STRIPE BROADCAST
             std::vector<REDUCE<T>> split_list;
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
-            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-            groupsize_temp[0] = numproc;
             // INITIALIZE STRIPING BY INTRA-NODE SCATTER
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
@@ -146,8 +147,7 @@ namespace ExaComm {
         }
         // INIT REDUCTION
         std::vector<REDUCE<T>> &reducelist = reduce_epoch[epoch];
-        if(reducelist.size())
-        {
+        if(reducelist.size()) {
           // PARTITION INTO BATCHES
           std::vector<std::vector<REDUCE<T>>> reduce_batch(numbatch);
           ExaComm::batch(reducelist, numbatch, reduce_batch);
@@ -160,8 +160,6 @@ namespace ExaComm {
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
             ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
             // COMPLETE STRIPING BY INTRA-NODE GATHER
-            std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
-            groupsize_temp[0] = numproc;
             ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
 	  }
         }
