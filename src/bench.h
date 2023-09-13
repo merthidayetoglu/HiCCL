@@ -180,7 +180,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
     case allgather: if(myid == printid) printf("VERIFY ALL-GATHER: ");
       for(int p = 0; p < numproc; p++)
         for(size_t i = 0; i < count; i++) {
-          // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+          // if(myid == printid) printf("myid %d recvbuf[%d] = %d (%d)\n", myid, p * count + i, recvbuf[p * count + i], i);
           if(recvbuf[p * count + i] != i) {
             pass = false;
             errorcount++;
@@ -189,7 +189,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
       break;
     case reducescatter: if(myid == printid) printf("VERIFY REDUCE-SCATTER: ");
       for(size_t i = 0; i < count; i++) {
-        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        // if(myid == printid) printf("myid %d recvbuf[%d] = %d (%d)\n", myid, i, recvbuf[i], (myid * count + i) * numproc);
         if(recvbuf[i] != (myid * count + i) * numproc) {
           pass = false;
           errorcount++;
@@ -198,7 +198,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
       break;
     case allreduce: if(myid == printid) printf("VERIFY ALL-REDUCE: ");
       for(size_t i = 0; i < count * numproc; i++) {
-        // printf("myid %d recvbuf[%d] = %d\n", myid, i, recvbuf[i]);
+        // if(myid == printid) printf("myid %d recvbuf[%d] = %d (%d)\n", myid, i, recvbuf[i], i * numproc);
         if(recvbuf[i] != i * numproc) {
           pass = false;
           errorcount++;

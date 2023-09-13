@@ -128,6 +128,7 @@
                     if(myid == recvid) {
                       recvbuf = recvbuf_ptr[numrecvbuf]; // recycle memory
                       recycle += reduce.count;
+                      numrecvbuf++;
                     }
                     //if(printid == printid)
                     //  printf("recvid %d reuses recv memory\n", recvid);

@@ -209,10 +209,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 4;
+    int numlevel = 3;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 16, 8, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC};
+    int hierarchy[5] = {groupsize, 8, 4, 4, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
 
     // INITIALIZE
     double time = MPI_Wtime();
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
       printf("preproc time: %e\n", time);
 
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
-    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, coll);
+    ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, ROOT, coll);
   }
 
 // DEALLOCATE
