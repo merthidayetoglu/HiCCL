@@ -208,3 +208,44 @@
       }
     }
   };
+
+  template <typename T>
+  void allocate(T *buffer, size_t n) {
+#ifdef PORT_CUDA
+    cudaMalloc(&buffer, n * sizeof(T));
+#elif defined PORT_HIP
+    hipMalloc(&buffer, n * sizeof(T));
+#elif defined PORT_SYCL
+    buffer = sycl::malloc_device<T>(n, q);
+#else
+    buffer = std::malloc(n * sizeof(T));
+#endif
+  }
+
+  template <typename T>
+  void copy(T *sendbuf, T *recvbuf, size_t n) {
+#ifdef PORT_CUDA
+    cudaMemcpy(recvbuf, sendbuf, n * sizeof(T), cudaMemcpyDeviceToDevice);
+#elif defined PORT_HIP
+    hipMemcpy(recvbuf, sendbuf, n * sizeof(T), cudaMemcpyDeviceToDevice);
+#elif defined PORT_SYCL
+    CommBench::q->memcpy(recvbuf, sendbuf, n * sizeof(T));
+    CommBench::q->wait();
+#else
+    std::memcpy(recvbuf, sendbuf, n * sizeof(T));
+#endif
+  }
+
+  template <typename T>
+  void free(T *buffer) {
+#ifdef PORT_CUDA
+    cudaFree(buffer);
+#elif defined PORT_HIP
+    hipFree(buffer);
+#elif defined PORT_SYCL
+    sycl::free(buffer);
+#else
+    std::free(buffer);
+#endif
+  }
+
