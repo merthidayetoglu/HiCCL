@@ -16,6 +16,20 @@
 #ifndef EXACOMM_H
 #define EXACOMM_H
 
+#include <mpi.h>
+
+// #define PORT_CUDA // for NVIDIA
+// #define PORT_HIP // for AMD
+// #define PORT_SYCL // for Intel
+
+#ifdef PORT_CUDA
+#include <nccl.h>
+#elif defined PORT_HIP
+#include <rccl.h>
+#elif defined PORT_SYCL
+#include <sycl.h>
+#endif
+
 #include "CommBench/comm.h"
 
 #include <vector>
