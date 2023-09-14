@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "../CommBench/comm.h"
+#include "CommBench/comm.h"
 
 #include <vector>
 #include <list>
