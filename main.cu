@@ -16,7 +16,7 @@
 #include <stdio.h> // for printf
 #include <mpi.h>
 
-#include PORT_CUDA
+#define PORT_CUDA
 #include "exacomm.h"
 
 #define ROOT 0
