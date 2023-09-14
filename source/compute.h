@@ -227,7 +227,7 @@
 #ifdef PORT_CUDA
     cudaMemcpy(recvbuf, sendbuf, n * sizeof(T), cudaMemcpyDeviceToDevice);
 #elif defined PORT_HIP
-    hipMemcpy(recvbuf, sendbuf, n * sizeof(T), cudaMemcpyDeviceToDevice);
+    hipMemcpy(recvbuf, sendbuf, n * sizeof(T), hipMemcpyDeviceToDevice);
 #elif defined PORT_SYCL
     CommBench::q->memcpy(recvbuf, sendbuf, n * sizeof(T));
     CommBench::q->wait();
