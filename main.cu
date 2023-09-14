@@ -13,23 +13,13 @@
  * limitations under the License.
  */
 
-#include <mpi.h>
 #include <stdio.h> // for printf
+#include <mpi.h>
+
+#include PORT_CUDA
+#include "exacomm.h"
 
 #define ROOT 0
-
-// HEADERS
- #include <nccl.h>
-// #include <rccl.h>
-// #include <sycl.hpp>
-// #include <ze_api.h>
-
-// PORTS
- #define PORT_CUDA
-// #define PORT_HIP
-// #define PORT_SYCL
-
-#include "exacomm.h"
 
 // UTILITIES
 #include "CommBench/util.h"
