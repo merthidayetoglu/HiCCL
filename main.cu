@@ -120,8 +120,8 @@ int main(int argc, char *argv[])
   // ALLOCATE
   Type *sendbuf_d;
   Type *recvbuf_d;
-  CommBench::allocate(sendbuf_d, count * numproc);
-  CommBench::allocate(recvbuf_d, count * numproc);
+  ExaComm::allocate(&sendbuf_d, count * numproc);
+  ExaComm::allocate(&recvbuf_d, count * numproc);
 
   // AUXILLIARY DATA STRUCTURES
   std::vector<int> proclist;

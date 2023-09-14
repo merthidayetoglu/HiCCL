@@ -210,7 +210,7 @@
   };
 
   template <typename T>
-  void allocate(T *buffer, size_t n) {
+  void allocate(T *&buffer, size_t n) {
 #ifdef PORT_CUDA
     cudaMalloc(&buffer, n * sizeof(T));
 #elif defined PORT_HIP

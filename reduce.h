@@ -112,7 +112,7 @@
 	    }
 	    else {
               if(myid == recvid) {
-                CommBench::allocate(outputbuf, reduce.count);
+                ExaComm::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
                 buffsize += reduce.count;
               }
@@ -135,7 +135,7 @@
                   }
                   else {
                     if(myid == recvid) {
-                      CommBench::allocate(recvbuf, reduce.count);
+                      ExaComm::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
                       buffsize += reduce.count;
                       numrecvbuf++;
@@ -259,7 +259,7 @@
           }
         if(!sendreuse) {
 	  if(myid == sendid) {
-            CommBench::allocate(sendbuf, reduce.count);
+            ExaComm::allocate(sendbuf, reduce.count);
             sendoffset = 0;
             buffsize += reduce.count;
           }
@@ -285,10 +285,10 @@
 	else {
           T *recvbuf_intra;
           if(myid == reduce.recvid) {
-	    CommBench::allocate(recvbuf, reduce.count);
+	    ExaComm::allocate(recvbuf, reduce.count);
             recvoffset = 0;
             buffsize += reduce.count;
-            CommBench::allocate(recvbuf_intra, reduce.count);
+            ExaComm::allocate(recvbuf_intra, reduce.count);
             buffsize += reduce.count;
           }
           reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
@@ -370,7 +370,7 @@
             size_t recvoffset;
             if(recver != reduce.recvid) {
               if(myid == recver) {
-                CommBench::allocate(recvbuf, splitcount);
+                ExaComm::allocate(recvbuf, splitcount);
                 buffsize += splitcount;
                 recvoffset = 0;
               }

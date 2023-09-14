@@ -138,7 +138,7 @@
                 }
                 else {
                   if(myid == recvid) {
-                    CommBench::allocate(recvbuf, bcast.count);
+                    ExaComm::allocate(recvbuf, bcast.count);
                     buffsize += bcast.count;
                     recvoffset = 0;
                   }
@@ -206,7 +206,7 @@
             reuse += bcast.count;
           }
           else {
-            CommBench::allocate(recvbuf, bcast.count);
+            ExaComm::allocate(recvbuf, bcast.count);
             recvoffset = 0;
             buffsize += bcast.count;
           }
@@ -291,7 +291,7 @@
               }
               if(!found)
                 if(myid == sender) {
-                  CommBench::allocate(sendbuf, splitcount);
+                  ExaComm::allocate(sendbuf, splitcount);
                   buffsize += splitcount;
                   sendoffset = 0;
                 }
