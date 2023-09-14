@@ -27,7 +27,7 @@
 #elif defined PORT_HIP
 #include <rccl.h>
 #elif defined PORT_SYCL
-#include <sycl.h>
+#include <sycl.hpp>
 #endif
 
 #include "CommBench/comm.h"
