@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include <stdio.h> // for printf
 #include <mpi.h>
+#include <stdio.h> // for printf
 
 #define ROOT 0
 
