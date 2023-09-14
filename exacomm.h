@@ -20,8 +20,6 @@
 
 #include <vector>
 #include <list>
-#include <iterator>
-#include <numeric>
 
 namespace ExaComm {
 
@@ -32,13 +30,13 @@ namespace ExaComm {
   size_t recycle = 0;
   size_t reuse = 0;
 
-#include "src/compute.h"
+#include "compute.h"
 
 #include "coll.h"
 #include "command.h"
 
-#include "src/reduce.h"
-#include "src/broadcast.h"
+#include "reduce.h"
+#include "broadcast.h"
 
   template <typename T>
   class Comm {
@@ -393,9 +391,7 @@ namespace ExaComm {
       }
     }
   };
-
-#include "src/bench.h"
-
+#include "bench.h"
 }
 
 #endif

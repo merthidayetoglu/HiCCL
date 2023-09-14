@@ -14,11 +14,7 @@
  */
 
 #include <stdio.h> // for printf
-#include <stdlib.h> // for atoi
-#include <cstring> // for memcpy
-#include <algorithm> // for sort
 #include <mpi.h>
-#include <omp.h>
 
 #define ROOT 0
 
@@ -36,7 +32,7 @@
 #include "exacomm.h"
 
 // UTILITIES
-#include "../CommBench/util.h"
+#include "CommBench/util.h"
 void print_args();
 
 // USER DEFINED TYPE
@@ -56,10 +52,6 @@ int main(int argc, char *argv[])
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
   MPI_Comm_size(MPI_COMM_WORLD, &numproc);
-  int numthread;
-  #pragma omp parallel
-  if(omp_get_thread_num() == 0)
-    numthread = omp_get_num_threads();
   // char machine_name[MPI_MAX_PROCESSOR_NAME];
   // int name_len = 0;
   // MPI_Get_processor_name(machine_name, &name_len);
@@ -83,7 +75,6 @@ int main(int argc, char *argv[])
   {
     printf("\n");
     printf("Number of processes: %d\n", numproc);
-    printf("Number of threads per proc: %d\n", numthread);
     printf("Number of warmup %d\n", warmup);
     printf("Number of iterations %d\n", numiter);
     printf("\n");
@@ -191,15 +182,15 @@ int main(int argc, char *argv[])
         break;
       case allreduce :
         // REDUCE + BROADCAST
-        coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
+        /*coll.add_reduce(sendbuf_d, 0, recvbuf_d, 0, count * numproc, proclist, ROOT);
         coll.add_fence();
-        coll.add_bcast(recvbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, recvids[ROOT]);
+        coll.add_bcast(recvbuf_d, 0, recvbuf_d, 0, count * numproc, ROOT, recvids[ROOT]);*/
         // REDUCE-SCATTER + ALL-GATHER
-        /*for(int recver = 0; recver < numproc; recver++)
+        for(int recver = 0; recver < numproc; recver++)
           coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
         coll.add_fence();
         for(int sender = 0; sender < numproc; sender++)
-          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);*/
+          coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
         break;
       default:
         if(myid == ROOT)
@@ -211,6 +202,7 @@ int main(int argc, char *argv[])
     int groupsize = numproc / numgroup;
     int hierarchy[5] = {groupsize, 8, 4, 4, 1};
     CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    CommBench::printid = ROOT;
 
     // INITIALIZE
     double time = MPI_Wtime();

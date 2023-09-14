@@ -6,14 +6,9 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
   MPI_Comm_rank(comm_mpi, &myid);
   MPI_Comm_size(comm_mpi, &numproc);
 
-  int numthread = -1;
-  #pragma omp parallel
-  #pragma omp master
-  numthread = omp_get_num_threads();
-
   double times[numiter];
   if(myid == printid)
-    printf("%d warmup iterations (in order) numthread %d:\n", warmup, numthread);
+    printf("%d warmup iterations (in order):\n", warmup);
   for (int iter = -warmup; iter < numiter; iter++) {
 
 #ifdef PORT_CUDA
