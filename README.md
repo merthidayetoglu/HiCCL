@@ -1,3 +1,3 @@
 # HiCCL
 
-HiCCL is a compositional GPU-Aware communication library. It decouples the collective pattern from the machine description. When the machine is described, ExaComm optimizes the primitive pattern for a hierarchical machine template.
+HiCCL is a GPU-Aware communication library. It has a compositional API for separating the collective pattern design from the machine-specific optimizations. It offers the Expand and Fold primitives to design complicated collective communication patterns. HiCCL then optimizes the primitive pattern for a specified machine, that is described by the user.
