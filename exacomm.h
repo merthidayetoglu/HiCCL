@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+#ifndef EXACOMM_H
+#define EXACOMM_H
+
 #include "CommBench/comm.h"
 
 #include <vector>
@@ -394,3 +397,5 @@ namespace ExaComm {
 #include "src/bench.h"
 
 }
+
+#endif
