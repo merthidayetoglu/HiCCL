@@ -30,13 +30,13 @@ namespace ExaComm {
   size_t recycle = 0;
   size_t reuse = 0;
 
-#include "src/compute.h"
+#include "exacomm/compute.h"
 
-#include "src/coll.h"
-#include "src/command.h"
+#include "exacomm/coll.h"
+#include "exacomm/command.h"
 
-#include "src/reduce.h"
-#include "src/broadcast.h"
+#include "exacomm/reduce.h"
+#include "exacomm/broadcast.h"
 
   template <typename T>
   class Comm {
@@ -391,7 +391,7 @@ namespace ExaComm {
       }
     }
   };
-#include "src/bench.h"
+#include "exacomm/bench.h"
 }
 
 #endif
