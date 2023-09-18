@@ -152,11 +152,21 @@
               compute_temp[lib_hash[coll->lib]]->add(coll->inputbuf[i], coll->outputbuf[i], coll->numreduce[i], coll->compid[i]);
             }
           }
-        for(int i = 0; i < lib.size(); i++) {
-          coll_pipeline[i].push_back(coll_temp[i]);
-          pipeline[i].push_back(Command<T>(comm_temp[i], compute_temp[i]));
+        if(coll_total->numcomm + coll_total->numcompute) {
+          for(int i = 0; i < lib.size(); i++) {
+            coll_pipeline[i].push_back(coll_temp[i]);
+            pipeline[i].push_back(Command<T>(comm_temp[i], compute_temp[i]));
+          }
+          coll_mixed.push_back(coll_total);
         }
-        coll_mixed.push_back(coll_total);
+        else {
+          delete coll_total;
+          for(int i = 0; i < lib.size(); i++) {
+            delete coll_temp[i];
+            delete comm_temp[i];
+            delete compute_temp[i];
+          }
+        }
       }
     }
 
