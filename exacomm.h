@@ -37,12 +37,12 @@
 
 namespace ExaComm {
 
-  const MPI_Comm &comm_mpi = CommBench::comm_mpi;
-  int printid = -1;
+  static const MPI_Comm &comm_mpi = CommBench::comm_mpi;
+  static int printid = -1;
 
-  size_t buffsize = 0;
-  size_t recycle = 0;
-  size_t reuse = 0;
+  static size_t buffsize = 0;
+  static size_t recycle = 0;
+  static size_t reuse = 0;
 
 #include "source/compute.h"
 #include "source/coll.h"

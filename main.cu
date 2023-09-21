@@ -13,10 +13,8 @@
  * limitations under the License.
  */
 
-#include <stdio.h> // for printf
 #include <mpi.h>
 
-#define PORT_CUDA
 #include "exacomm.h"
 
 #define ROOT 0
@@ -26,7 +24,7 @@
 void print_args();
 
 // USER DEFINED TYPE
-#define Type size_t
+#define Type float
 /*struct Type
 {
   // int tag;
