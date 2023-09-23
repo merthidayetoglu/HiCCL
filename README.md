@@ -8,13 +8,29 @@ As an example, composition and optimization of all-reduce function is given belo
 #define PORT_HIP
 #include "exacomm.h"
 
-ExaComm::Comm<float> allreduce;
+...
 
-int numgpu_total;
-MPI_Comm_size(&numgpu_total, ExaComm::comm_mpi);
-int numgpu_node = 8;
+  ExaComm::Comm<float> allreduce;
 
-// Composition as reduce-scatter + all-gather
+  int numgpu_total;
+  MPI_Comm_size(&numgpu_total, ExaComm::comm_mpi);
+  std::vector<int> sendids;
+  std::vector<std::vector<int>> recvids(numgpu_total);
+  for(int sender = 0; sender < numgpu_total; sender++) {
+    sendids.push_back(sender);
+    for(int recver = 0; recver < numgpu_total; recver++)
+      if(recver != sender)
+        recvids[sender].push_back(recver);
+  }
+  
+  // Composition as reduce-scatter + all-gather
+  for(int recver = 0; recver < numgpu_total; recver++)
+    coll.add_reduce(sendbuf_d, recver * count, recvbuf_d, recver * count, count, proclist, recver);
+  coll.add_fence();
+  for(int sender = 0; sender < numproc; sender++)
+    coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, recvids[sender]);
+
+...
 
 
 ```
