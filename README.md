@@ -4,7 +4,7 @@ HiCCL is a GPU-Aware communication library. It has a compositional API for separ
 
 As an example, composition and optimization of all-reduce function is given below.
 
-```
+```c++
 #define PORT_HIP
 #include "exacomm.h"
 
