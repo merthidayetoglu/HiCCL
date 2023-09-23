@@ -10,6 +10,12 @@ As an example, composition and optimization of all-reduce function is given belo
 
 ExaComm::Comm<float> allreduce;
 
+int numgpu_total;
+MPI_Comm_size(&numgpu_total, ExaComm::comm_mpi);
+int numgpu_node = 8;
+
+// Composition as reduce-scatter + all-gather
+
 
 ```
 
