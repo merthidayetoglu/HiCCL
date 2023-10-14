@@ -187,10 +187,10 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 3;
+    int numlevel = 2;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 8, 4, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int hierarchy[5] = {groupsize, 4, 4, 4, 1};
+    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
     CommBench::printid = ROOT;
 
     // INITIALIZE

@@ -268,7 +268,7 @@
                     switch(commandptr[i]->comm->lib) {
                       case CommBench::IPC :  printf(" IPC"); break;
                       case CommBench::MPI :  printf(" MPI"); break;
-                      case CommBench::NCCL : printf(" NCL"); break;
+		      case CommBench::NCCL : printf(" NCL"); break;
                       default : break;
                     }
                   else // printf("-   ");
