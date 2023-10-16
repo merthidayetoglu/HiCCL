@@ -15,7 +15,7 @@
 
 #include <mpi.h>
 
-#define PORT_CUDA
+// #define PORT_SYCL
 #include "exacomm.h"
 
 #define ROOT 0
@@ -205,6 +205,9 @@ int main(int argc, char *argv[])
   }
 
 // DEALLOCATE
+  ExaComm::free(sendbuf_d);
+  ExaComm::free(recvbuf_d);
+  /*
 #ifdef PORT_CUDA
   cudaFree(sendbuf_d);
   cudaFree(recvbuf_d);
@@ -218,6 +221,7 @@ int main(int argc, char *argv[])
   delete[] sendbuf_d;
   delete[] recvbuf_d;
 #endif
+  */
 
   // FINALIZE
   MPI_Finalize();

@@ -17,7 +17,7 @@
     for(size_t i = 0; i < count; i++) {
       T acc = 0;
       for(int in = 0; in < numinput; in++)
-        acc += inputbuf[in][i];
+        acc += input[in][i];
       output[i] = acc;
     }
   }
@@ -216,7 +216,7 @@
 #elif defined PORT_HIP
     hipMalloc(&buffer, n * sizeof(T));
 #elif defined PORT_SYCL
-    buffer = sycl::malloc_device<T>(n, q);
+    buffer = sycl::malloc_device<T>(n, CommBench::q);
 #else
     buffer = std::malloc(n * sizeof(T));
 #endif
@@ -243,7 +243,7 @@
 #elif defined PORT_HIP
     hipFree(buffer);
 #elif defined PORT_SYCL
-    sycl::free(buffer);
+    sycl::free(buffer, CommBench::q);
 #else
     std::free(buffer);
 #endif

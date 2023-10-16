@@ -28,6 +28,7 @@
 #include <rccl.h>
 #elif defined PORT_SYCL
 #include <sycl.hpp>
+#include <ze_api.h>
 #endif
 
 #include "CommBench/comm.h"
