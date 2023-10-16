@@ -18,9 +18,10 @@
 
 #include <mpi.h>
 
-// #define PORT_CUDA // for NVIDIA
-// #define PORT_HIP // for AMD
-// #define PORT_SYCL // for Intel
+// GPU PORTS
+// For NVIDIA: #define PORT_CUDA
+// For AMD: #define PORT_HIP
+// For SYCL: #define PORT_SYCL
 
 #ifdef PORT_CUDA
 #include <nccl.h>

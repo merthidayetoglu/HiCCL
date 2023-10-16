@@ -15,7 +15,7 @@
 
 #include <mpi.h>
 
-// #define PORT_SYCL
+#define PORT_SYCL
 #include "exacomm.h"
 
 #define ROOT 0

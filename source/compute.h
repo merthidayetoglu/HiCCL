@@ -218,7 +218,7 @@
 #elif defined PORT_SYCL
     buffer = sycl::malloc_device<T>(n, CommBench::q);
 #else
-    buffer = std::malloc(n * sizeof(T));
+    buffer = malloc(n * sizeof(T));
 #endif
   }
 
@@ -229,10 +229,10 @@
 #elif defined PORT_HIP
     hipMemcpy(recvbuf, sendbuf, n * sizeof(T), hipMemcpyDeviceToDevice);
 #elif defined PORT_SYCL
-    CommBench::q->memcpy(recvbuf, sendbuf, n * sizeof(T));
-    CommBench::q->wait();
+    CommBench::q.memcpy(recvbuf, sendbuf, n * sizeof(T));
+    CommBench::q.wait();
 #else
-    std::memcpy(recvbuf, sendbuf, n * sizeof(T));
+    memcpy(recvbuf, sendbuf, n * sizeof(T));
 #endif
   }
 
@@ -245,7 +245,7 @@
 #elif defined PORT_SYCL
     sycl::free(buffer, CommBench::q);
 #else
-    std::free(buffer);
+    free(buffer);
 #endif
   }
 
