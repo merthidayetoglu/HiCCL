@@ -218,21 +218,7 @@
 #elif defined PORT_SYCL
     buffer = sycl::malloc_device<T>(n, CommBench::q);
 #else
-    buffer = malloc(n * sizeof(T));
-#endif
-  }
-
-  template <typename T>
-  void copy(T *sendbuf, T *recvbuf, size_t n) {
-#ifdef PORT_CUDA
-    cudaMemcpy(recvbuf, sendbuf, n * sizeof(T), cudaMemcpyDeviceToDevice);
-#elif defined PORT_HIP
-    hipMemcpy(recvbuf, sendbuf, n * sizeof(T), hipMemcpyDeviceToDevice);
-#elif defined PORT_SYCL
-    CommBench::q.memcpy(recvbuf, sendbuf, n * sizeof(T));
-    CommBench::q.wait();
-#else
-    memcpy(recvbuf, sendbuf, n * sizeof(T));
+    buffer = new T[n];
 #endif
   }
 
@@ -245,7 +231,7 @@
 #elif defined PORT_SYCL
     sycl::free(buffer, CommBench::q);
 #else
-    free(buffer);
+    delete[] buffer;
 #endif
   }
 

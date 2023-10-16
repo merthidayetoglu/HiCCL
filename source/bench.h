@@ -83,8 +83,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
 
   enum pattern {dummy, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
-  T *recvbuf;
   T *sendbuf;
+  T *recvbuf;
 #ifdef PORT_CUDA
   cudaMallocHost(&sendbuf, count * numproc * sizeof(T));
   cudaMallocHost(&recvbuf, count * numproc * sizeof(T));
@@ -93,6 +93,10 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
   hipHostMalloc(&sendbuf, count * numproc * sizeof(T));
   hipHostMalloc(&recvbuf, count * numproc * sizeof(T));
   hipMemset(recvbuf_d, -1, count * numproc * sizeof(T));
+#elif defined PORT_SYCL
+  sendbuf = sycl::malloc_host<T>(count * numproc, CommBench::q);
+  recvbuf = sycl::malloc_host<T>(count * numproc, CommBench::q);
+  CommBench::q.memset(recvbuf_d, -1, count); // call a kernel;
 #endif
   #pragma omp parallel for
   for(size_t i = 0; i < count * numproc; i++)
@@ -107,6 +111,9 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
   hipStreamCreate(&stream);
   hipMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), hipMemcpyHostToDevice, stream);
   hipStreamSynchronize(stream);
+#elif defined PORT_SYCL
+  CommBench::q.memcpy(sendbuf_d, sendbuf, count * numproc * sizeof(T));
+  CommBench::q.wait();
 #endif
   MPI_Barrier(comm_mpi);
 
@@ -118,6 +125,9 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
 #elif defined PORT_HIP
   hipMemcpyAsync(recvbuf, recvbuf_d, count * numproc * sizeof(T), hipMemcpyDeviceToHost, stream);
   hipStreamSynchronize(stream);
+#elif defined PORT_SYCL
+  CommBench::q.memcpy(recvbuf, recvbuf_d, count * numproc * sizeof(T));
+  CommBench::q.wait();
 #endif
 
   unsigned long errorcount = 0;

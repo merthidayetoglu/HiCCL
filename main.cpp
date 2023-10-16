@@ -189,8 +189,8 @@ int main(int argc, char *argv[])
     // MACHINE DESCRIPTION
     int numlevel = 2;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 4, 4, 4, 1};
-    CommBench::library library[5] = {CommBench::NCCL, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    int hierarchy[5] = {groupsize, 12, 4, 4, 1};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
     CommBench::printid = ROOT;
 
     // INITIALIZE
@@ -207,21 +207,6 @@ int main(int argc, char *argv[])
 // DEALLOCATE
   ExaComm::free(sendbuf_d);
   ExaComm::free(recvbuf_d);
-  /*
-#ifdef PORT_CUDA
-  cudaFree(sendbuf_d);
-  cudaFree(recvbuf_d);
-#elif defined PORT_HIP
-  hipFree(sendbuf_d);
-  hipFree(recvbuf_d);
-#elif defined PORT_SYCL
-  sycl::free(sendbuf_d, q);
-  sycl::free(recvbuf_d, q);
-#else
-  delete[] sendbuf_d;
-  delete[] recvbuf_d;
-#endif
-  */
 
   // FINALIZE
   MPI_Finalize();
