@@ -49,13 +49,8 @@
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
       if(myid == printid) {
-        switch(this->lib) {
-          case CommBench::IPC  : printf("IPC "); break;
-          case CommBench::MPI  : printf("MPI "); break;
-          case CommBench::NCCL : printf("NCCL "); break;
-          default : break;
-        }
-        printf("communication: ");
+        CommBench::print_lib(this->lib);
+        printf(" communication: ");
         {
           std::vector<std::vector<int>> matrix(numproc, std::vector<int>(numproc));
           size_t data = 0;
@@ -139,18 +134,14 @@
             else
               printf("   ");
             if((*coll_ptr[i])->numcomm + (*coll_ptr[i])->numcompute)
-              switch((*coll_ptr[i])->lib) {
-                case CommBench::IPC :  printf("IPC"); break;
-                case CommBench::MPI :  printf("MPI"); break;
-                case CommBench::NCCL : printf("NCL"); break;
-                default : break;
-              }
+              CommBench::print_lib((*coll_ptr[i])->lib);
             else
               switch((*coll_ptr[i])->lib) {
-                case CommBench::IPC :  printf(" I "); break;
-                case CommBench::MPI :  printf(" M "); break;
+                case CommBench::IPC  : printf(" I "); break;
+                case CommBench::MPI  : printf(" M "); break;
                 case CommBench::NCCL : printf(" N "); break;
-                default : break;
+                case CommBench::CPU  : printf(" C "); break;
+                case CommBench::numlib  : printf(" - "); break;
               }
             if((*coll_ptr[i])->numcompute)
               printf(" %d |", (*coll_ptr[i])->numcompute);
