@@ -19,11 +19,26 @@
     void start_compute() { if(compute) compute->start(); };
     void wait_compute()  { if(compute) compute->wait();  };
 
+    bool isempty() {
+      if(comm)
+        if(comm->numsend + comm->numrecv)
+           return false;
+      if(compute)
+        if(compute->numcomp)
+           return false;
+      return true;
+    }
+
     void measure(int warmup, int numiter) {
       int myid;
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
+      if(isempty()) {
+        if(myid == printid)
+          printf("EMPTY COMMAND\n");
+        return;
+      }
       if(comm) {
         if(myid == printid) {
           if(compute) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
