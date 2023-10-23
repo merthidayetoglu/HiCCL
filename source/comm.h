@@ -153,19 +153,19 @@
         bool finished = true;
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
-            commandptr[i]->start_comm();
+            commandptr[i]->comm->start();
             finished = false;
           }
         if(finished)
           break;
         for(int i = command_batch.size() - 1; i > -1; i--)
           if(commandptr[i] != command_batch[i].end()) {
-            commandptr[i]->wait_comm();
-            commandptr[i]->start_compute();
+            commandptr[i]->comm->wait();
+            commandptr[i]->compute->start();
           }
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
-            commandptr[i]->wait_compute();
+            commandptr[i]->compute->wait();
             commandptr[i]++;
           }
       }

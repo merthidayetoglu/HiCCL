@@ -8,50 +8,29 @@
     ExaComm::Compute<T> *compute = nullptr;
 
     // COMMUNICATION
-    Command(CommBench::Comm<T> *comm) : comm(comm) {}
+    // Command(CommBench::Comm<T> *comm) : comm(comm) {}
     // COMPUTATION
-    Command(ExaComm::Compute<T> *compute) : compute(compute) {}
+    // Command(ExaComm::Compute<T> *compute) : compute(compute) {}
     // COMMUNICATION + COMPUTATION
     Command(CommBench::Comm<T> *comm, ExaComm::Compute<T> *compute) : comm(comm), compute(compute) {}
 
-    void start_comm()    { if(comm)    comm->start();    };
-    void wait_comm()     { if(comm)    comm->wait();     };
-    void start_compute() { if(compute) compute->start(); };
-    void wait_compute()  { if(compute) compute->wait();  };
-
-    bool isempty() {
-      if(comm)
-        if(comm->numsend + comm->numrecv)
-           return false;
-      if(compute)
-        if(compute->numcomp)
-           return false;
-      return true;
-    }
-
-    void measure(int warmup, int numiter) {
+    void measure(int warmup, int numiter, size_t count) {
       int myid;
-      int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-      if(isempty()) {
-        if(myid == printid)
-          printf("EMPTY COMMAND\n");
-        return;
-      }
-      if(comm) {
+
+      if(comm->numsend + comm->numrecv) {
         if(myid == printid) {
-          if(compute) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
-          else        printf("COMMAND TYPE: COMMUNICATION\n");
+          if(compute->numcomp) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
+          else                 printf("COMMAND TYPE: COMMUNICATION\n");
         }
-        comm->measure(warmup, numiter);
-        if(compute)
-          compute->measure(warmup, numiter);
+        comm->measure(warmup, numiter, count);
+        if(compute->numcomp)
+          compute->measure(warmup, numiter, count);
       }
-      else if(compute) {
+      else if(compute->numcomp) {
         if(myid == printid)
           printf("COMMAND TYPE: COMPUTATION\n");
-        compute->measure(warmup, numiter);
+        compute->measure(warmup, numiter, count);
       }
     }
   };
