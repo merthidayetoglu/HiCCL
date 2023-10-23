@@ -14,22 +14,10 @@
     // COMMUNICATION + COMPUTATION
     Command(CommBench::Comm<T> *comm, ExaComm::Compute<T> *compute) : comm(comm), compute(compute) {}
 
-    void start() {
-      if(comm)
-        comm->start();
-      else if(compute)
-        compute->start();
-    }
-    void wait() {
-      if(comm) {
-        comm->wait();
-        if(compute)
-          compute->run();
-      }
-      else if(compute)
-        compute->wait();
-    }
-    void run() { start(); wait(); }
+    void start_comm()    { if(comm)    comm->start();    };
+    void wait_comm()     { if(comm)    comm->wait();     };
+    void start_compute() { if(compute) compute->start(); };
+    void wait_compute()  { if(compute) compute->wait();  };
 
     void measure(int warmup, int numiter) {
       int myid;

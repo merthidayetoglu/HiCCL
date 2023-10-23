@@ -26,11 +26,11 @@
     std::vector<std::vector<int>> groupsize;
     std::vector<std::vector<CommBench::library>> library;
 
+    public:
+
     // FUTURE PIPELINE
     std::vector<std::list<Command<T>>> command_batch;
     std::vector<std::list<Coll<T>*>> coll_batch;
-
-    public:
 
     void add_fence() {
       bcast_epoch.push_back(std::vector<BROADCAST<T>>());
@@ -153,14 +153,19 @@
         bool finished = true;
         for(int i = 0; i < command_batch.size(); i++)
           if(commandptr[i] != command_batch[i].end()) {
-            commandptr[i]->start();
+            commandptr[i]->start_comm();
             finished = false;
           }
         if(finished)
           break;
         for(int i = command_batch.size() - 1; i > -1; i--)
           if(commandptr[i] != command_batch[i].end()) {
-            commandptr[i]->wait();
+            commandptr[i]->wait_comm();
+            commandptr[i]->start_compute();
+          }
+        for(int i = 0; i < command_batch.size(); i++)
+          if(commandptr[i] != command_batch[i].end()) {
+            commandptr[i]->wait_compute();
             commandptr[i]++;
           }
       }
