@@ -201,6 +201,8 @@
     }
   };
 
+  // MEMORY MANAGEMENT
+
   template <typename T>
   void allocate(T *&buffer, size_t n) {
 #ifdef PORT_CUDA
@@ -209,6 +211,19 @@
     hipMalloc(&buffer, n * sizeof(T));
 #elif defined PORT_SYCL
     buffer = sycl::malloc_device<T>(n, CommBench::q);
+#else
+    buffer = new T[n];
+#endif
+  }
+
+  template <typename T>
+  void allocateHost(T *&buffer, size_t n) {
+#ifdef PORT_CUDA
+    cudaMallocHost(&buffer, n * sizeof(T));
+#elif defined PORT_HIP
+    hipHostMalloc(&buffer, n * sizeof(T));
+#elif defined PORT_SYCL
+    buffer = sycl::malloc_host<T>(n, CommBench::q);
 #else
     buffer = new T[n];
 #endif
@@ -226,4 +241,18 @@
     delete[] buffer;
 #endif
   }
+
+  template <typename T>
+  void freeHost(T *buffer) {
+#ifdef PORT_CUDA
+    cudaFreeHost(buffer);
+#elif defined PORT_HIP
+    hipHostFree(buffer);
+#elif defined PORT_SYCL
+    sycl::free(buffer, CommBench::q);
+#else
+    delete[] buffer;
+#endif
+  }
+
 
