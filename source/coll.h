@@ -140,7 +140,7 @@
                 case CommBench::IPC  : printf(" I "); break;
                 case CommBench::MPI  : printf(" M "); break;
                 case CommBench::NCCL : printf(" N "); break;
-                case CommBench::CPU  : printf(" C "); break;
+                case CommBench::STAGE  : printf(" S "); break;
                 case CommBench::numlib  : printf(" - "); break;
               }
             if((*coll_ptr[i])->numcompute)
