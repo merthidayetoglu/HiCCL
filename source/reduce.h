@@ -85,7 +85,7 @@
         std::vector<int> sendids_new;
         std::vector<T*> sendbuf_new;
         std::vector<size_t> sendoffset_new;
-        int recvgroup = reduce.recvid / groupsize[level];
+        // int recvgroup = reduce.recvid / groupsize[level];
         for(int sendgroup = 0; sendgroup < numgroup; sendgroup++) {
           std::vector<int> sendids;
           for(auto &sendid : reduce.sendids)

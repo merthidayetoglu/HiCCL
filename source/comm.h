@@ -171,7 +171,7 @@
       }
     }
 
-    void measure(int warmup, int numiter) {
+    void measure(int warmup, int numiter, size_t count) {
 
       int myid;
       int numproc;
@@ -197,16 +197,16 @@
           if(myid == printid) printf("******************************************* MEASURE COMMANDS ************************************************\n");
           for(int i = 0; i < command_batch.size(); i++)
             if(commandptr[i] != command_batch[i].end())
-              commandptr[i]->measure(warmup, numiter);
+              commandptr[i]->measure(warmup, numiter, count);
           if(myid == printid) printf("******************************************* MEASURE STEP ************************************************\n");
           MPI_Barrier(comm_mpi);
           double time = MPI_Wtime();
           for(int i = 0; i < command_batch.size(); i++)
             if(commandptr[i] != command_batch[i].end())
-              commandptr[i]->start();
+              commandptr[i]->comm->start();
           for(int i = 0; i < command_batch.size(); i++)
             if(commandptr[i] != command_batch[i].end()) {
-              commandptr[i]->wait();
+              commandptr[i]->comm->wait();
               commandptr[i]++;
             }
           MPI_Barrier(comm_mpi);
