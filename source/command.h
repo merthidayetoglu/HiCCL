@@ -152,15 +152,13 @@
       }
     }
 
-    // REPORT COMPOSITE PIPELINE
+    // REPORT MIXED PIPELINE
     for(int i = 0; i < coll_mixed.size(); i++)
       if(i < coll_batch[0].size() || i >= coll_mixed.size() - coll_batch[0].size()) {
         if(myid == printid)
-          printf("COMPOSITE %d\n", i);
+          printf("MIXED (OVERLAPPED) STEP: %d / %d\n", i, coll_mixed.size());
         coll_mixed[i]->report();
       }
-    //for(auto &coll : coll_mixed)
-    //  coll->report();
     report_pipeline(coll_pipeline);
   }
 
