@@ -182,6 +182,7 @@
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
       }
+      MPI_Barrier(comm_mpi);
       {
         using Iter = typename std::list<ExaComm::Command<T>>::iterator;
         std::vector<Iter> commandptr(command_batch.size());
@@ -196,9 +197,11 @@
             break;
           if(myid == printid) printf("******************************************* MEASURE COMMANDS ************************************************\n");
           for(int i = 0; i < command_batch.size(); i++)
-            if(commandptr[i] != command_batch[i].end())
+            if(commandptr[i] != command_batch[i].end()) {
               commandptr[i]->measure(warmup, numiter, count);
-          if(myid == printid) printf("******************************************* MEASURE STEP ************************************************\n");
+              commandptr[i]++;
+            }
+          /*if(myid == printid) printf("******************************************* MEASURE STEP ************************************************\n");
           MPI_Barrier(comm_mpi);
           double time = MPI_Wtime();
           for(int i = 0; i < command_batch.size(); i++)
@@ -212,7 +215,7 @@
           MPI_Barrier(comm_mpi);
           time = MPI_Wtime() - time;
           if(myid == printid)
-            printf("time: %e\n", time);
+            printf("time: %e\n", time);*/
         }
       }
     }

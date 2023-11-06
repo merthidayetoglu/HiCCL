@@ -18,16 +18,21 @@
       int myid;
       MPI_Comm_rank(comm_mpi, &myid);
 
-      if(comm->numsend + comm->numrecv) {
+      int numcomm = 0;
+      int numcomp = 0;
+      MPI_Allreduce(&(comm->numsend), &numcomm, 1, MPI_INT, MPI_SUM, comm_mpi);
+      MPI_Allreduce(&(comm->numrecv), &numcomm, 1, MPI_INT, MPI_SUM, comm_mpi);
+      MPI_Allreduce(&(compute->numcomp), &numcomp, 1, MPI_INT, MPI_SUM, comm_mpi);
+      if(numcomm) {
         if(myid == printid) {
           if(compute->numcomp) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
           else                 printf("COMMAND TYPE: COMMUNICATION\n");
         }
         comm->measure(warmup, numiter, count);
-        if(compute->numcomp)
+        if(numcomp)
           compute->measure(warmup, numiter, count);
       }
-      else if(compute->numcomp) {
+      else if(numcomp) {
         if(myid == printid)
           printf("COMMAND TYPE: COMPUTATION\n");
         compute->measure(warmup, numiter, count);
@@ -156,7 +161,7 @@
     for(int i = 0; i < coll_mixed.size(); i++)
       if(i < coll_batch[0].size() || i >= coll_mixed.size() - coll_batch[0].size()) {
         if(myid == printid)
-          printf("MIXED (OVERLAPPED) STEP: %d / %d\n", i, coll_mixed.size());
+          printf("MIXED (OVERLAPPED) STEP: %d / %ld\n", i, coll_mixed.size());
         coll_mixed[i]->report();
       }
     report_pipeline(coll_pipeline);

@@ -200,6 +200,8 @@ int main(int argc, char *argv[])
     if(myid == ROOT)
       printf("preproc time: %e\n", time);
 
+    coll.measure(warmup, numiter, numproc * count);
+
     ExaComm::measure<Type>(count * numproc, warmup, numiter, coll);
     ExaComm::validate(sendbuf_d, recvbuf_d, count, pattern, ROOT, coll);
   }
