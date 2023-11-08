@@ -110,19 +110,39 @@
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
-            // STRIPE BROADCAST
+            // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
-            // INITIALIZE STRIPING BY INTRA-NODE SCATTER
-            // Coll<T> *stripe = new Coll<T>(CommBench::IPC);
-            // for(auto &p2p : split_list)
-            //   stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
-            // coll_batch[batch].push_back(stripe);
-            std::vector<T*> recvbuff; // for memory recycling
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            // IMPLEMENT WITH IPC
+            Coll<T> *stripe = new Coll<T>(CommBench::IPC);
+            for(auto &p2p : split_list)
+              stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
+            coll_batch[batch].push_back(stripe);
+            // IMPLEMENT WITH CPU
+            /*Coll<T> *stripe_d2h = new Coll<T>(CommBench::STAGE);
+            Coll<T> *stripe_h2h = new Coll<T>(CommBench::MPI);
+            Coll<T> *stripe_h2d = new Coll<T>(CommBench::STAGE);
+            for(auto &p2p : split_list) {
+              T *sendbuf_h;
+              T *recvbuf_h;
+              if(myid == p2p.sendids[0])
+                allocateHost(sendbuf_h, p2p.count);
+              if(myid == p2p.recvid)
+                allocateHost(recvbuf_h, p2p.count);
+              stripe_d2h->add(p2p.sendbuf, p2p.sendoffset, sendbuf_h, 0, p2p.count, p2p.sendids[0], -1);
+              stripe_h2h->add(sendbuf_h, 0, recvbuf_h, 0, p2p.count, p2p.sendids[0], p2p.recvid);
+              stripe_h2d->add(recvbuf_h, 0, p2p.recvbuf, p2p.recvoffset, p2p.count, -1, p2p.recvid);
+            }
+            coll_batch[batch].push_back(stripe_d2h);
+            coll_batch[batch].push_back(stripe_h2h);
+            coll_batch[batch].push_back(stripe_h2d);*/
+            // std::vector<T*> recvbuff; // for memory recycling
+            // ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
             // HIERARCHICAL RING + TREE
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
             ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch]);
+            // FOR INTRA-NODE
+            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
           }
         }
         // INIT REDUCTION

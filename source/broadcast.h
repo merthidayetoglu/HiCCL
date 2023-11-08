@@ -223,11 +223,11 @@
 
     if(bcastlist_extra.size()) // IMPLEMENT RING FOR EXTRA-NODE COMMUNICATIONS (IF THERE IS STILL LEFT)
       bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list);
-    else { // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
+    /*else { // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
       ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, 1, coll_list);
-    }
+    }*/
   }
 
   template <typename T, typename P>
