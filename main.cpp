@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
     int numlevel = 5;
     int groupsize = numproc / numgroup;
     int hierarchy[5] = {groupsize, 16, 8, 4, 2};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC, CommBench::IPC};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC, CommBench::IPC};
     CommBench::printid = ROOT;
 
     // INITIALIZE
