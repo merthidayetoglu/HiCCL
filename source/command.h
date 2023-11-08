@@ -14,7 +14,7 @@
     // COMMUNICATION + COMPUTATION
     Command(CommBench::Comm<T> *comm, ExaComm::Compute<T> *compute) : comm(comm), compute(compute) {}
 
-    void measure(int warmup, int numiter, size_t count) {
+    void measure(int warmup, int numiter) { //, size_t count) {
       int myid;
       MPI_Comm_rank(comm_mpi, &myid);
 
@@ -28,14 +28,14 @@
           if(compute->numcomp) printf("COMMAND TYPE: COMMUNICATION + COMPUTATION\n");
           else                 printf("COMMAND TYPE: COMMUNICATION\n");
         }
-        comm->measure(warmup, numiter, count);
+        comm->measure(warmup, numiter); //, count);
         if(numcomp)
-          compute->measure(warmup, numiter, count);
+          compute->measure(warmup, numiter); //, count);
       }
       else if(numcomp) {
         if(myid == printid)
           printf("COMMAND TYPE: COMPUTATION\n");
-        compute->measure(warmup, numiter, count);
+        compute->measure(warmup, numiter); //, count);
       }
     }
   };

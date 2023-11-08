@@ -114,6 +114,10 @@
             std::vector<REDUCE<T>> split_list;
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
             // INITIALIZE STRIPING BY INTRA-NODE SCATTER
+            // Coll<T> *stripe = new Coll<T>(CommBench::IPC);
+            // for(auto &p2p : split_list)
+            //   stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
+            // coll_batch[batch].push_back(stripe);
             std::vector<T*> recvbuff; // for memory recycling
             ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
             // HIERARCHICAL RING + TREE
@@ -171,7 +175,7 @@
       }
     }
 
-    void measure(int warmup, int numiter, size_t count) {
+    void measure(int warmup, int numiter) { //, size_t count) {
 
       int myid;
       int numproc;
@@ -198,7 +202,7 @@
           if(myid == printid) printf("******************************************* MEASURE COMMANDS ************************************************\n");
           for(int i = 0; i < command_batch.size(); i++)
             if(commandptr[i] != command_batch[i].end()) {
-              commandptr[i]->measure(warmup, numiter, count);
+              commandptr[i]->measure(warmup, numiter);//, count);
               commandptr[i]++;
             }
           /*if(myid == printid) printf("******************************************* MEASURE STEP ************************************************\n");
