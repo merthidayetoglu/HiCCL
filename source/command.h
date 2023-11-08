@@ -115,7 +115,7 @@
             finished = false;
         if(finished)
           break;
-        ExaComm::Coll<T> *coll_total = new ExaComm::Coll<T>(CommBench::numlib);
+        ExaComm::Coll<T> *coll_total = new ExaComm::Coll<T>(CommBench::null);
         std::vector<ExaComm::Coll<T>*> coll_temp(lib.size());
         std::vector<CommBench::Comm<T>*> comm_temp(lib.size());
         std::vector<ExaComm::Compute<T>*> compute_temp(lib.size());
