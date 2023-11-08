@@ -161,7 +161,7 @@
     for(int i = 0; i < coll_mixed.size(); i++)
       if(i < coll_batch[0].size() || i >= coll_mixed.size() - coll_batch[0].size()) {
         if(myid == printid)
-          printf("MIXED (OVERLAPPED) STEP: %d / %ld\n", i, coll_mixed.size());
+          printf("MIXED (OVERLAPPED) STEP: %d / %ld\n", i + 1, coll_mixed.size());
         coll_mixed[i]->report();
       }
     report_pipeline(coll_pipeline);

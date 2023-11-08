@@ -48,6 +48,8 @@
       int numproc;
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
+
+
       if(myid == printid) {
         CommBench::print_lib(this->lib);
         printf(" communication: ");
@@ -56,7 +58,7 @@
           size_t data = 0;
           for(int i = 0; i < this->numcomm; i++) {
             data += this->count[i] * sizeof(T);
-            matrix[this->recvid[i]][this->sendid[i]]++;
+            matrix[abs(this->recvid[i])][abs(this->sendid[i])]++;
           }
           CommBench::print_data(data);
           printf("\n");
