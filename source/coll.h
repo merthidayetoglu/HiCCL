@@ -137,11 +137,12 @@
               CommBench::print_lib((*coll_ptr[i])->lib);
             else
               switch((*coll_ptr[i])->lib) {
+                case CommBench::null : printf(" - "); break;
                 case CommBench::IPC  : printf(" I "); break;
                 case CommBench::MPI  : printf(" M "); break;
                 case CommBench::NCCL : printf(" N "); break;
                 case CommBench::STAGE  : printf(" S "); break;
-                case CommBench::numlib  : printf(" - "); break;
+                case CommBench::numlib  : printf(" NUMLIB "); break;
               }
             if((*coll_ptr[i])->numcompute)
               printf(" %d |", (*coll_ptr[i])->numcompute);
