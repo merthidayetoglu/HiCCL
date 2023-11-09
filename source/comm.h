@@ -114,12 +114,12 @@
             std::vector<REDUCE<T>> split_list;
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
             // IMPLEMENT WITH IPC
-            Coll<T> *stripe = new Coll<T>(CommBench::IPC);
+            /*Coll<T> *stripe = new Coll<T>(CommBench::MPI);
             for(auto &p2p : split_list)
               stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
-            coll_batch[batch].push_back(stripe);
+            coll_batch[batch].push_back(stripe);*/
             // IMPLEMENT WITH CPU
-            /*Coll<T> *stripe_d2h = new Coll<T>(CommBench::STAGE);
+            Coll<T> *stripe_d2h = new Coll<T>(CommBench::STAGE);
             Coll<T> *stripe_h2h = new Coll<T>(CommBench::MPI);
             Coll<T> *stripe_h2d = new Coll<T>(CommBench::STAGE);
             for(auto &p2p : split_list) {
@@ -135,13 +135,13 @@
             }
             coll_batch[batch].push_back(stripe_d2h);
             coll_batch[batch].push_back(stripe_h2h);
-            coll_batch[batch].push_back(stripe_h2d);*/
-            // std::vector<T*> recvbuff; // for memory recycling
-            // ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
-            // HIERARCHICAL RING + TREE
+            coll_batch[batch].push_back(stripe_h2d);
+            //std::vector<T*> recvbuff; // for memory recycling
+            //ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            // APPLY RING ACROSS NODES
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
             ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch]);
-            // FOR INTRA-NODE
+            // APPLY TREE FOR INTRA-NODE
             ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
           }
         }
@@ -195,7 +195,7 @@
       }
     }
 
-    void measure(int warmup, int numiter) { //, size_t count) {
+    void measure(int warmup, int numiter, size_t count) {
 
       int myid;
       int numproc;
@@ -222,7 +222,7 @@
           if(myid == printid) printf("******************************************* MEASURE COMMANDS ************************************************\n");
           for(int i = 0; i < command_batch.size(); i++)
             if(commandptr[i] != command_batch[i].end()) {
-              commandptr[i]->measure(warmup, numiter);//, count);
+              commandptr[i]->measure(warmup, numiter, count);
               commandptr[i]++;
             }
           /*if(myid == printid) printf("******************************************* MEASURE STEP ************************************************\n");
