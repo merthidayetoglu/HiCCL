@@ -162,7 +162,7 @@
   }
 
   template<typename T>
-  void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<ExaComm::Coll<T>*> &coll_list) {
+  void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<ExaComm::Coll<T>*> &coll_list, void (*allocate)(T*&, size_t)) {
 
     int myid;
     int numproc;
@@ -206,7 +206,7 @@
             reuse += bcast.count;
           }
           else {
-            ExaComm::allocate(recvbuf, bcast.count);
+            allocate(recvbuf, bcast.count);
             recvoffset = 0;
             buffsize += bcast.count;
           }
@@ -222,7 +222,7 @@
       delete coll_temp;
 
     if(bcastlist_extra.size()) // IMPLEMENT RING FOR EXTRA-NODE COMMUNICATIONS (IF THERE IS STILL LEFT)
-      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list);
+      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list, allocate);
     /*else { // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
