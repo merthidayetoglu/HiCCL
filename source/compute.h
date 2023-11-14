@@ -99,15 +99,15 @@
         int blocksize = 256;
         reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #elif defined PORT_SYCL
-        /*T *output = outputbuf[comp];
+        T *output = outputbuf[comp];
         int numinput = inputbuf[comp].size();
         T **input = inputbuf_d[comp];
         queue[comp]->parallel_for(sycl::range<1>{count[comp]}, [=] (sycl::id<1> i) {
-          float acc = 0;
+          T acc = 0;
           for(int in = 0; in < numinput; in++)
             acc += input[in][i];
           output[i] = acc;
-        });*/
+        });
 #else
         reduce_kernel (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #endif
