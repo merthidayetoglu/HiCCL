@@ -103,8 +103,7 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
   hipMemcpyAsync(sendbuf_d, sendbuf, count * numproc * sizeof(T), hipMemcpyHostToDevice, stream);
   hipStreamSynchronize(stream);
 #elif defined PORT_SYCL
-  CommBench::q.memcpy(sendbuf_d, sendbuf, count * numproc * sizeof(T));
-  CommBench::q.wait();
+  CommBench::q.memcpy(sendbuf_d, sendbuf, count * numproc * sizeof(T)).wait();
 #endif
   MPI_Barrier(comm_mpi);
 

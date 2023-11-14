@@ -188,18 +188,14 @@ int main(int argc, char *argv[])
     }
 
     // MACHINE DESCRIPTION
-    int numlevel = 5;
+    int numlevel = 4;
     int groupsize = numproc / numgroup;
-    int hierarchy[5] = {groupsize, 24, 12, 2, 1};
-    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::IPC};
+    int hierarchy[5] = {groupsize, 12, 2, 1, 1};
+    CommBench::library library[5] = {CommBench::MPI, CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC};
     CommBench::printid = ROOT;
 
     // INITIALIZE
-    double time = MPI_Wtime();
     coll.init(numlevel, hierarchy, library, numstripe, stripeoffset, pipedepth, pipeoffset);
-    time = MPI_Wtime() - time;
-    if(myid == ROOT)
-      printf("preproc time: %e\n", time);
 
     coll.measure(warmup, numiter, count * numproc / pipedepth);
 

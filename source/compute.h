@@ -24,6 +24,9 @@
 #endif
 
   template <typename T>
+  void allocate(T *&buffer, size_t n);
+
+  template <typename T>
   class Compute {
 
     public:
@@ -39,6 +42,8 @@
     std::vector<cudaStream_t*> stream;
 #elif defined PORT_HIP
     std::vector<hipStream_t*> stream;
+#elif defined PORT_SYCL
+    std::vector<sycl::queue*> queue;
 #endif
 
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
@@ -70,16 +75,18 @@
         this->outputbuf.push_back(outputbuf);
         this->count.push_back(count);
         T **inputbuf_d;
+        allocate(inputbuf_d, inputbuf.size());
 #ifdef PORT_CUDA
-        cudaMalloc(&inputbuf_d, inputbuf.size() * sizeof(T*));
         cudaMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), cudaMemcpyHostToDevice);
         stream.push_back(new cudaStream_t);
         cudaStreamCreate(stream[numcomp]);
 #elif defined PORT_HIP
-        hipMalloc(&inputbuf_d, inputbuf.size() * sizeof(T*));
         hipMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), hipMemcpyHostToDevice);
         stream.push_back(new hipStream_t);
         hipStreamCreate(stream[numcomp]);
+#elif defined PORT_SYCL
+	CommBench::q.memcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*)).wait();
+        queue.push_back(new sycl::queue(sycl::gpu_selector_v));
 #endif
         this->inputbuf_d.push_back(inputbuf_d);
         numcomp++;
@@ -91,6 +98,16 @@
 #if defined PORT_CUDA || defined PORT_HIP
         int blocksize = 256;
         reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
+#elif defined PORT_SYCL
+        /*T *output = outputbuf[comp];
+        int numinput = inputbuf[comp].size();
+        T **input = inputbuf_d[comp];
+        queue[comp]->parallel_for(sycl::range<1>{count[comp]}, [=] (sycl::id<1> i) {
+          float acc = 0;
+          for(int in = 0; in < numinput; in++)
+            acc += input[in][i];
+          output[i] = acc;
+        });*/
 #else
         reduce_kernel (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #endif
@@ -102,6 +119,8 @@
         cudaStreamSynchronize(*stream[comp]);
 #elif defined PORT_HIP
         hipStreamSynchronize(*stream[comp]);
+#elif defined PORT_SYCL
+        queue[comp]->wait();
 #endif
       }
     }

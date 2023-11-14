@@ -71,6 +71,9 @@
       MPI_Comm_rank(comm_mpi, &myid);
       MPI_Comm_size(comm_mpi, &numproc);
 
+      MPI_Barrier(comm_mpi);
+      double init_time = MPI_Wtime();
+
       if(myid == printid) {
         printf("NUMBER OF EPOCHS: %d\n", numepoch);
         for(int epoch = 0; epoch < numepoch; epoch++)
@@ -189,6 +192,10 @@
       }
       // IMPLEMENT WITH COMMBENCH
       implement(coll_batch, command_batch, pipelineoffset);
+
+      MPI_Barrier(comm_mpi);
+      if(myid == printid)
+        printf("initialization time: %e seconds\n", MPI_Wtime() - init_time);
     }
 
     void run() {
