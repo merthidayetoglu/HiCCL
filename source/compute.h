@@ -214,6 +214,7 @@
 #else
     buffer = new T[n];
 #endif
+    buffsize += n;
   }
 
   template <typename T>

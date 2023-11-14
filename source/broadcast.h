@@ -139,7 +139,6 @@
                 else {
                   if(myid == recvid) {
                     ExaComm::allocate(recvbuf, bcast.count);
-                    buffsize += bcast.count;
                     recvoffset = 0;
                   }
                   //if(printid == printid)
@@ -162,7 +161,7 @@
   }
 
   template<typename T>
-  void bcast_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<ExaComm::Coll<T>*> &coll_list, void (*allocate)(T*&, size_t)) {
+  void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<ExaComm::Coll<T>*> &coll_list, void (*allocate)(T*&, size_t)) {
 
     int myid;
     int numproc;
@@ -171,14 +170,14 @@
 
     std::vector<BROADCAST<T>> bcastlist_extra;
 
-    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[0]);
+    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib);
 
     for(auto &bcast : bcastlist) {
-      int sendnode = bcast.sendid / groupsize[0];
+      int sendnode = bcast.sendid / groupsize;
       std::vector<int> recvids_intra;
       std::vector<int> recvids_extra;
       for(auto &recvid : bcast.recvids) {
-        int recvnode = recvid / groupsize[0];
+        int recvnode = recvid / groupsize;
         if(sendnode == recvnode)
           recvids_intra.push_back(recvid);
         else
@@ -191,7 +190,7 @@
       if(recvids_extra.size()) {
         T *recvbuf;
         size_t recvoffset;
-        int recvid = ((sendnode + 1) % (numproc / groupsize[0])) * groupsize[0] + bcast.sendid % groupsize[0];
+        int recvid = ((sendnode + 1) % (numproc / groupsize)) * groupsize + bcast.sendid % groupsize;
         bool found = false;
         for(auto it = recvids_extra.begin(); it != recvids_extra.end(); it++)
           if(*it == recvid) {
@@ -208,7 +207,6 @@
           else {
             allocate(recvbuf, bcast.count);
             recvoffset = 0;
-            buffsize += bcast.count;
           }
         }
         coll_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf, recvoffset, bcast.count, bcast.sendid, recvid);
@@ -222,7 +220,7 @@
       delete coll_temp;
 
     if(bcastlist_extra.size()) // IMPLEMENT RING FOR EXTRA-NODE COMMUNICATIONS (IF THERE IS STILL LEFT)
-      bcast_ring(comm_mpi, numlevel, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list, allocate);
+      bcast_ring(comm_mpi, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list, allocate);
     /*else { // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
@@ -277,24 +275,27 @@
             std::vector<int> recvids = bcast.recvids;
             if(sender != bcast.sendid) {
               bool found = false;
-              // RECYCLE
+              // REUSE
               for(auto it = recvids.begin(); it < recvids.end(); it++) {
                 if(*it == sender) {
-                  if(myid == sender) {
-                    sendbuf = bcast.recvbuf;
-                    sendoffset = bcast.recvoffset + splitoffset;
-                  }
                   recvids.erase(it);
                   found = true;
                   break;
                 }
               }
-              if(!found)
+              if(found) {
+                if(myid == sender) {
+                  sendbuf = bcast.recvbuf;
+                  sendoffset = bcast.recvoffset + splitoffset;
+                  reuse += splitcount;
+                }
+              }
+              else {
                 if(myid == sender) {
                   ExaComm::allocate(sendbuf, splitcount);
-                  buffsize += splitcount;
                   sendoffset = 0;
                 }
+              }
               split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf, sendoffset, splitcount, bcast.sendid, sender));
             }
             else {

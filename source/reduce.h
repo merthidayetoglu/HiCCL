@@ -114,7 +114,6 @@
               if(myid == recvid) {
                 ExaComm::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
-                buffsize += reduce.count;
               }
               // if(printid == printid)
               //    printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d send malloc %zu\n", recvid, reduce.count * sizeof(T));
@@ -137,7 +136,6 @@
                     if(myid == recvid) {
                       ExaComm::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
-                      buffsize += reduce.count;
                       numrecvbuf++;
                     }
                     //if(printid == printid)
@@ -261,7 +259,6 @@
 	  if(myid == sendid) {
             ExaComm::allocate(sendbuf, reduce.count);
             sendoffset = 0;
-            buffsize += reduce.count;
           }
           //if(printid == printid)
           //  printf("proc %d allocate %ld\n", sendid, reduce.count);
@@ -287,9 +284,7 @@
           if(myid == reduce.recvid) {
 	    ExaComm::allocate(recvbuf, reduce.count);
             recvoffset = 0;
-            buffsize += reduce.count;
             ExaComm::allocate(recvbuf_intra, reduce.count);
-            buffsize += reduce.count;
           }
           reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
           std::vector<T*> inputbuf = {recvbuf, recvbuf_intra};
@@ -371,7 +366,6 @@
             if(recver != reduce.recvid) {
               if(myid == recver) {
                 ExaComm::allocate(recvbuf, splitcount);
-                buffsize += splitcount;
                 recvoffset = 0;
               }
               merge_list.push_back(P(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));

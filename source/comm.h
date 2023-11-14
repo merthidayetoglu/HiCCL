@@ -110,14 +110,16 @@
           ExaComm::batch(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
+
             // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
             ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
+            // ExaComm::stripe_ring(comm_mpi, numstripe, bcast_batch[batch], split_list);
             // IMPLEMENT WITH IPC
-            Coll<T> *stripe = new Coll<T>(CommBench::MPI);
-            for(auto &p2p : split_list)
-              stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
-            coll_batch[batch].push_back(stripe);
+            // Coll<T> *stripe = new Coll<T>(CommBench::MPI);
+            //for(auto &p2p : split_list)
+            //  stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
+            // coll_batch[batch].push_back(stripe);
             // STRIPING THROUGH CPU
             /*Coll<T> *stripe_d2h = new Coll<T>(CommBench::STAGE);
             Coll<T> *stripe_h2h = new Coll<T>(CommBench::MPI);
@@ -151,24 +153,18 @@
             }*/
             
 	    // Coll<T> *stage_h2d = new Coll<T>(CommBench::STAGE);
-            //std::vector<T*> recvbuff; // for memory recycling
-            //ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
-            // APPLY RING ACROSS NODES
+
+            // APPLY REDUCE TREE TO ROOTS FOR STRIPING
+            std::vector<T*> recvbuff; // for memory recycling
+            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            // std::vector<BROADCAST<T>> bcast_temp; // for accumulating intra-node communications for tree (internally)
+            // ExaComm::bcast_ring(comm_mpi, 1, lib[numlevel-1], split_list, bcast_temp, coll_batch[batch], &allocate);
+
+            // APPLY RING TO BRANCHES ACROSS NODES
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::bcast_ring(comm_mpi, numlevel, groupsize, lib, bcast_batch[batch], bcast_intra, coll_batch[batch], &allocate);
-            /*{
-	      Coll<T> *stage_h2d = new Coll<T>(CommBench::STAGE);
-              std::vector<BROADCAST<T>> temp_batch = bcast_intra;
-              bcast_intra.clear();
-              for(auto &bcast : temp_batch) {
-	        T *stagebuf;
-	        allocate(stagebuf, bcast.count);
-                stage_h2d->add(bcast.sendbuf, bcast.sendoffset, stagebuf, 0, bcast.count, -1, bcast.sendid);
-                bcast_intra.push_back(BROADCAST<T>(stagebuf, 0, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
-              }
-              coll_batch[batch].push_back(stage_h2d);
-            }*/
-            // APPLY TREE FOR INTRA-NODE
+            ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, coll_batch[batch], &allocate);
+
+            // APPLY TREE TO THE LEAVES WITHIN NODES
             ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
           }
         }
