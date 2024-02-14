@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef EXACOMM_H
-#define EXACOMM_H
+#ifndef HICCL_H
+#define HICCL_H
 
 #include <mpi.h>
 
@@ -23,21 +23,12 @@
 // For AMD: #define PORT_HIP
 // For SYCL: #define PORT_SYCL
 
-#ifdef PORT_CUDA
-#include <nccl.h>
-#elif defined PORT_HIP
-#include <rccl.h>
-#elif defined PORT_SYCL
-#include <sycl.hpp>
-#include <ze_api.h>
-#endif
-
 #include "CommBench/comm.h"
 
 #include <vector>
 #include <list>
 
-namespace ExaComm {
+namespace HiCCL {
 
   static const MPI_Comm &comm_mpi = CommBench::comm_mpi;
   static int printid = -1;
