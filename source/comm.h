@@ -33,12 +33,26 @@
     int numstripe = 1;
     int ringnodes = 1;
     int pipedepth = 1;
-
     // ENDPOINTS
     T *sendbuf;
     T *recvbuf;
     size_t sendcount;
     size_t recvcount;
+
+    // SET HIERARCHY
+    void set_hierarchy(std::vector<int> hierarchy, std::vector<CommBench::library> library) {
+      if(hierarchy.size() != library.size()) {
+        if(myid == printid)
+          printf("hierarchy and library must have the same size!\n");
+        return;
+      }
+      else {
+        this->hierarchy = hierarchy;
+        this->library = library;
+      }
+    }
+
+    // SET ENDPOINTS
     void set_endpoints(T *sendbuf, size_t sendcount, T *recvbuf, size_t recvcount) {
       this->sendbuf = sendbuf;
       this->sendcount = sendcount;
@@ -46,7 +60,7 @@
       this->recvcount = recvcount;
     }
 
-    void print_parameters() {
+    void report_parameters() {
       if(myid == printid) {
         printf("**************** HiCCL PARAMETERS\n");
         printf("%d-level hierarchy:\n", hierarchy.size());
@@ -67,6 +81,16 @@
           printf("\n");
         printf("pipedepth: %d", pipedepth);
         if(pipedepth == 1)
+          printf(" (default)\n");
+        else
+          printf("\n");
+        printf("sendbuf: %p, sendcount %ld\n", sendbuf, sendcount);
+        if(sendbuf == nullptr)
+          printf(" (default)\n");
+        else
+          printf("\n");
+        printf("recvbuf: %p, recvcount %ld\n", recvbuf, recvcount);
+        if(recvbuf == nullptr)
           printf(" (default)\n");
         else
           printf("\n");
@@ -235,7 +259,7 @@
     }
 
     void init() {
-      print_parameters();
+      report_parameters();
       int numlevel = hierarchy.size();
       std::vector<int> groupsize(numlevel);
       groupsize[numlevel - 1] = hierarchy[numlevel - 1];
