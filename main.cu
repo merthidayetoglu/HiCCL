@@ -3,27 +3,30 @@
 
 int main() {
 
-  // ALLREDUCE PARAMETERS
   size_t count = 256e6; // 1 GB
-  std::vector<int> hierarchy = {2, 4};
-  std::vector<CommBench::library> lib = {CommBench::MPI, CommBench::IPC};
-  int pipeline(8);
+  float *weights;
+  cudaMalloc(&weights, count * sizeof(float));
 
-  // INITIALIZE ALLREDUCE
-  HiCCL::Comm<float> allreduce = HiCCL::init_allreduce<float>(count, hierarchy, lib, pipeline);
+  HiCCL::Comm<float> allreduce;
+  {
+    float *sendbuf;
+    float *recvbuf;
+    CommBench::allocate(sendbuf, count);
+    CommBench::allocate(recvbuf, count);
 
-  // ALLOCATE BUFFER
-  float *buffer;
-  CommBench::allocate(buffer, count);
+    int root = 0;
+    allreduce.add_reduce(sendbuf, 0, recvbuf, 0, count, CommBench::numproc, root); // all -> root
+    allreduce.add_fence();
+    allreduce.add_bcast(recvbuf, 0, recvbuf, 0, count, root, -1); // root -> all - root
 
-  return 0;
+    allreduce.init();
+    allreduce.set_endpoints(sendbuf, count, recvbuf, count);
+  }
 
-  // RUN COMMUNICATIONS
-  cudaDeviceSynchronize();
-  allreduce.run(buffer, buffer);
+  allreduce.run(weights, weights);
+  allreduce.measure(5, 10, count);
 
-  // DEALLOCATE BUFFER
-  CommBench::free(buffer);
+  cudaFree(weights);
 
   return 0;
 }

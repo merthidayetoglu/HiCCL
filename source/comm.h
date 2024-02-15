@@ -24,14 +24,55 @@
     // MACHINE
     std::vector<int> numlevel;
     std::vector<std::vector<int>> groupsize;
-    std::vector<std::vector<CommBench::library>> library;
 
     public:
 
-    T *sendbuf = nullptr;
-    size_t sendcount = 0;
-    T *recvbuf = nullptr;
-    size_t recvcount = 0;
+    // HiCCL PARAMETERS
+    std::vector<int> hierarchy = {numproc};
+    std::vector<CommBench::library> library = {CommBench::MPI};
+    int numstripe = 1;
+    int ringnodes = 1;
+    int pipedepth = 1;
+
+    // ENDPOINTS
+    T *sendbuf;
+    T *recvbuf;
+    size_t sendcount;
+    size_t recvcount;
+    void set_endpoints(T *sendbuf, size_t sendcount, T *recvbuf, size_t recvcount) {
+      this->sendbuf = sendbuf;
+      this->sendcount = sendcount;
+      this->recvbuf = recvbuf;
+      this->recvcount = recvcount;
+    }
+
+    void print_parameters() {
+      if(myid == printid) {
+        printf("**************** HiCCL PARAMETERS\n");
+        printf("%d-level hierarchy:\n", hierarchy.size());
+        for(int i = 0; i < hierarchy.size(); i++) {
+          printf("  level %d factor: %d library: ", i, hierarchy[i]);
+          CommBench::print_lib(library[i]);
+          printf("\n");
+        }
+        printf("numstripe: %d", numstripe);
+        if(numstripe == 1)
+          printf(" (default)\n");
+        else
+          printf("\n");
+        printf("ringnodes: %d", ringnodes);
+        if(ringnodes == 1)
+          printf(" (default)\n");
+        else
+          printf("\n");
+        printf("pipedepth: %d", pipedepth);
+        if(pipedepth == 1)
+          printf(" (default)\n");
+        else
+          printf("\n");
+        printf("*********************************\n");
+      }
+    }
 
     // FUTURE PIPELINE
     std::vector<std::list<Command<T>>> command_batch;
@@ -46,28 +87,26 @@
     }
 
     Comm() {
-      // INITIALIZE COMMBENCH
-      CommBench::Comm<T> comm(CommBench::MPI);
       // DEFAULT EPOCH
       this->add_fence();
     }
 
     // ADD FUNCTIONS FOR BROADCAST AND REDUCE PRIMITIVES
-    void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      bcast_epoch[numepoch-1].push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
-    }
     void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) {
-      bcast_epoch[numepoch-1].push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
+      bcast_epoch.back().push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvids));
     }
-    void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      reduce_epoch[numepoch-1].push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+    void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      bcast_epoch.back().push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
     void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid) {
-      reduce_epoch[numepoch-1].push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid));
+      reduce_epoch.back().push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid));
+    }
+    void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      reduce_epoch.back().push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
 
     // INITIALIZE BROADCAST AND REDUCTION TREES
-    void init(int numlevel, int groupsize[], CommBench::library lib[], int numstripe, int stripeoffset, int numbatch, int pipelineoffset) {
+    void init(int numlevel, int groupsize[], CommBench::library lib[], int numstripe, int numbatch) {
 
       MPI_Barrier(comm_mpi);
       double init_time = MPI_Wtime();
@@ -111,10 +150,9 @@
           partition(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
-
             // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
-            stripe(numstripe, stripeoffset, bcast_batch[batch], split_list);
+            stripe(numstripe, bcast_batch[batch], split_list);
             // ExaComm::stripe_ring(comm_mpi, numstripe, bcast_batch[batch], split_list);
             // IMPLEMENT WITH IPC
             // Coll<T> *stripe = new Coll<T>(CommBench::MPI);
@@ -179,7 +217,7 @@
           for(int batch = 0; batch < numbatch; batch++) {
             // STRIPE REDUCTION
             std::vector<BROADCAST<T>> merge_list;
-            stripe(numstripe, stripeoffset, reduce_batch[batch], merge_list);
+            stripe(numstripe, reduce_batch[batch], merge_list);
             // HIERARCHICAL REDUCTION RING + TREE
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
             reduce_ring(numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
@@ -189,11 +227,22 @@
         }
       }
       // IMPLEMENT WITH COMMBENCH
-      implement(coll_batch, command_batch, pipelineoffset);
+      implement(coll_batch, command_batch, 1);
 
       MPI_Barrier(comm_mpi);
       if(myid == printid)
         printf("initialization time: %e seconds\n", MPI_Wtime() - init_time);
+    }
+
+    void init() {
+      print_parameters();
+      int numlevel = hierarchy.size();
+      std::vector<int> groupsize(numlevel);
+      groupsize[numlevel - 1] = hierarchy[numlevel - 1];
+      for(int i = numlevel - 2; i > -1; i--)
+        groupsize[i] = groupsize[i + 1] * hierarchy[i];
+
+      init(numlevel, groupsize.data(), library.data(), numstripe, pipedepth);
     }
 
     void run() {

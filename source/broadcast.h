@@ -47,12 +47,21 @@
       }
     }
 
-    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) { 
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) {}
+
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) {
+      for(int i = 0; i < numproc; i++) {
+        if(recvid == numproc)
+          recvids.push_back(i);
+        else if(recvid == -1) {
+          if(i != sendid)
+            recvids.push_back(i);
+        }
+        else
+          if(i == recvid)
+            recvids.push_back(i);
+      }
       report();
-    }
-    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      std::vector<int> proclist = {recvid};
-      BROADCAST(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, proclist);
     }
   };
 
@@ -224,9 +233,9 @@
   }
 
   template <typename T, typename P>
-  void stripe(int numstripe, int stripeoffset, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
+  void stripe(int numstripe, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
 
-    int nodesize = (stripeoffset == 0 ? 1 : numstripe * stripeoffset);
+    int nodesize = numstripe;
 
     // SEPARATE INTRA AND INTER NODES
     std::vector<BROADCAST<T>> bcastlist_intra;
@@ -257,7 +266,7 @@
         int sendgroup = bcast.sendid / nodesize;
         size_t splitoffset = 0;
         for(int stripe = 0; stripe < numstripe; stripe++) {
-          int sender = sendgroup * nodesize + stripe * stripeoffset;
+          int sender = sendgroup * nodesize + stripe;
           size_t splitcount = bcast.count / numstripe + (stripe < bcast.count % numstripe ? 1 : 0);
           if(splitcount) {
             T *sendbuf;
@@ -320,4 +329,3 @@
       }
     }
   }
-

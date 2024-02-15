@@ -1,11 +1,6 @@
 template <typename T, typename Comm>
 void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
-  int myid;
-  int numproc;
-  MPI_Comm_rank(comm_mpi, &myid);
-  MPI_Comm_size(comm_mpi, &numproc);
-
   double times[numiter];
   if(myid == printid)
     printf("%d warmup iterations (in order):\n", warmup);
@@ -66,11 +61,6 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
 template <typename T, typename Comm>
 void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root, Comm &comm) {
-
-  int myid;
-  int numproc;
-  MPI_Comm_rank(comm_mpi, &myid);
-  MPI_Comm_size(comm_mpi, &numproc);
 
   enum pattern {dummy, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 

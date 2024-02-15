@@ -41,7 +41,7 @@
   void implement(std::vector<std::list<Coll<T>*>> &coll_batch, std::vector<std::list<Command<T>>> &pipeline, int pipeoffset) {
 
     for(auto &coll : coll_batch[0])
-        coll->report();
+      coll->report();
 
     // REPORT MEMORY
     {
@@ -148,7 +148,6 @@
         }
       }
     }
-
     // REPORT MIXED PIPELINE
     for(int i = 0; i < coll_mixed.size(); i++)
       if(i < coll_batch[0].size() || i >= coll_mixed.size() - coll_batch[0].size()) {

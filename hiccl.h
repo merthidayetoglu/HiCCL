@@ -44,37 +44,6 @@ namespace HiCCL {
 #include "source/comm.h"
 #include "source/bench.h"
 
-  template <typename T>
-  Comm<T> init_allreduce(size_t count, std::vector<int> hierarchy, std::vector<CommBench::library> library, int pipeline) {
-    T *commbuf;
-    CommBench::allocate(commbuf, count);
-    T *tempbuf;
-    if(myid == 0)
-      CommBench::allocate(tempbuf, count);
-    std::vector<int> proclist;
-    for(int i = 0; i < numproc; i++)
-      proclist.push_back(i);
-    Comm<T> allreduce;
-    allreduce.add_reduce(commbuf, 0, tempbuf, 0, count, proclist, 0);
-    allreduce.add_fence();
-    allreduce.add_bcast(tempbuf, 0, commbuf, 0, count, 0, proclist);
-
-    int numlevel = hierarchy.size();
-    std::vector<int> groupsize(numlevel);
-    groupsize[numlevel - 1] = hierarchy.back();
-    for(int level = numlevel - 2; level > -1; level--)
-      groupsize[level] = groupsize[level - 1] * hierarchy[level];
-    allreduce.init(numlevel, groupsize.data(), library.data(), 1, 1, pipeline, 1);
-
-    CommBench::report_memory();
-
-    allreduce.sendbuf = commbuf;
-    allreduce.sendcount = count;
-    allreduce.recvbuf = commbuf;
-    allreduce.recvcount = count;
-
-    return allreduce;
-  }
 }
 
 #endif

@@ -44,12 +44,6 @@
     }
 
     void report() {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-
       if(myid == printid) {
         CommBench::print_lib(this->lib);
         printf(" communication: ");
@@ -103,16 +97,12 @@
   template <typename T>
   void report_pipeline(std::vector<std::list<Coll<T>*>> &coll_batch) {
 
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
-
     // REPORT PIPELINE
     if(myid == printid) {
       printf("********************************************\n\n");
       printf("pipeline depth %zu\n", coll_batch.size());
-      printf("coll_list size %zu\n", coll_batch[0].size());
+      if(coll_batch.size())
+        printf("coll_list size %zu\n", coll_batch[0].size());
       printf("\n");
       int print_batch_size = (coll_batch.size() > 16 ? 16 : coll_batch.size());
       using Iter = typename std::list<Coll<T>*>::iterator;

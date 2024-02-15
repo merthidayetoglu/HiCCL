@@ -47,12 +47,21 @@
     }
 
     REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendids(sendids), recvid(recvid) {
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendids(sendids), recvid(recvid) {}
+
+    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), recvid(recvid) {
+      for(int i = 0; i < numproc; i++) {
+        if(sendid == numproc)
+          sendids.push_back(i);
+        else if(sendid == -1) {
+          if(i != recvid)
+            sendids.push_back(i);
+        }
+        else
+          if(i == sendid)
+            sendids.push_back(i);
+      }
       report();
-    }
-    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
-      std::vector<int> sendids = {sendid};
-      REDUCE(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid); 
     }
   };
 
@@ -316,9 +325,9 @@
   }
 
   template <typename T, typename P>
-  void stripe(int numstripe, int stripeoffset, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
+  void stripe(int numstripe, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
 
-    int nodesize = (stripeoffset == 0 ? 1 : numstripe * stripeoffset);
+    int nodesize = numstripe;
 
     // SEPARATE INTRA AND INTER NODES
     std::vector<REDUCE<T>> reducelist_intra;
@@ -350,7 +359,7 @@
         int recvnode = reduce.recvid / nodesize;
         size_t splitoffset = 0;
         for(int stripe = 0; stripe < numstripe; stripe++) {
-          int recver = recvnode * nodesize + stripe * stripeoffset;
+          int recver = recvnode * nodesize + stripe;
           size_t splitcount = reduce.count / numstripe + (stripe < reduce.count % numstripe ? 1 : 0);
           if(splitcount) {
             T *recvbuf;
@@ -392,4 +401,3 @@
       }
     }
   }
-
