@@ -10,30 +10,28 @@
     std::vector<int> sendids;
     const int recvid;
 
-    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendids(sendids), recvid(recvid) {}
-    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), recvid(recvid) { sendids.push_back(sendid); }
-    void report(int id) {
-      if(printid == recvid) {
-        MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
-        MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
+    void report() {
+      if(printid < 0)
+        return;
+      if(myid == recvid) {
+        MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+        MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);
       }
       for(auto &sendid : this->sendids)
-        if(printid == sendid) {
-          MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
-          MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
+        if(myid == sendid) {
+          MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+          MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);
         }
-      if(printid == id) {
+      if(myid == printid) {
         T* recvbuf_recvid;
         size_t recvoffset_recvid;
-        MPI_Recv(&recvbuf_recvid, sizeof(T*), MPI_BYTE, recvid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&recvoffset_recvid, sizeof(size_t), MPI_BYTE, recvid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	std::vector<T*> sendbuf_sendid(sendids.size());
-	std::vector<size_t> sendoffset_sendid(sendids.size());
+        MPI_Recv(&recvbuf_recvid, sizeof(T*), MPI_BYTE, recvid, 0, comm_mpi, MPI_STATUS_IGNORE);
+        MPI_Recv(&recvoffset_recvid, sizeof(size_t), MPI_BYTE, recvid, 0, comm_mpi, MPI_STATUS_IGNORE);
+        std::vector<T*> sendbuf_sendid(sendids.size());
+        std::vector<size_t> sendoffset_sendid(sendids.size());
         for(int send = 0; send < sendids.size(); send++) {
-          MPI_Recv(sendbuf_sendid.data() + send, sizeof(T*), MPI_BYTE, sendids[send], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          MPI_Recv(sendoffset_sendid.data() + send, sizeof(size_t), MPI_BYTE, sendids[send], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          MPI_Recv(sendbuf_sendid.data() + send, sizeof(T*), MPI_BYTE, sendids[send], 0, comm_mpi, MPI_STATUS_IGNORE);
+          MPI_Recv(sendoffset_sendid.data() + send, sizeof(size_t), MPI_BYTE, sendids[send], 0, comm_mpi, MPI_STATUS_IGNORE);
         }
         printf("REDUCE report: count %lu\n", count);
         char text[1000];
@@ -47,15 +45,19 @@
         printf("\n");
       }
     }
+
+    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid)
+    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendids(sendids), recvid(recvid) {
+      report();
+    }
+    REDUCE(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      std::vector<int> sendids = {sendid};
+      REDUCE(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid); 
+    }
   };
 
   template <typename T>
-  void reduce_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<ExaComm::Coll<T>*> &coll_list, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void reduce_tree(int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> reducelist, int level, std::list<Coll<T>*> &coll_list, std::vector<T*> &recvbuf_ptr, int numrecvbuf) {
 
     if(numproc != groupsize[0]) {
       printf("ERROR!!! groupsize[0] must be equal to numproc.\n");
@@ -68,7 +70,7 @@
     if(level == -1)
       return;
    
-    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[level]); 
+    Coll<T> *coll_temp = new Coll<T>(lib[level]); 
 
     std::vector<REDUCE<T>> reducelist_new;
 
@@ -112,7 +114,7 @@
 	    }
 	    else {
               if(myid == recvid) {
-                ExaComm::allocate(outputbuf, reduce.count);
+                CommBench::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
               }
               // if(printid == printid)
@@ -134,7 +136,7 @@
                   }
                   else {
                     if(myid == recvid) {
-                      ExaComm::allocate(recvbuf, reduce.count);
+                      CommBench::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
                       numrecvbuf++;
                     }
@@ -190,16 +192,11 @@
     else
       delete coll_temp;
 
-    reduce_tree(comm_mpi, numlevel, groupsize, lib, reducelist_new, level - 1, coll_list, recvbuf_ptr, 0);
+    reduce_tree(numlevel, groupsize, lib, reducelist_new, level - 1, coll_list, recvbuf_ptr, 0);
   }
 
   template<typename T>
-  void reduce_ring(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<ExaComm::Coll<T>*> &coll_list) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void reduce_ring(int numlevel, int groupsize[], CommBench::library lib[], std::vector<REDUCE<T>> &reducelist, std::vector<REDUCE<T>> &reducelist_intra, std::list<Coll<T>*> &coll_list) {
 
     //if(printid == printid)
    //   printf("number of original reductions %ld\n", reducelist.size());
@@ -207,7 +204,7 @@
     // std::vector<REDUCE<T>> reducelist_intra;
     std::vector<REDUCE<T>> reducelist_extra;
 
-    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[0]);
+    Coll<T> *coll_temp = new Coll<T>(lib[0]);
 
     //if(printid == printid)
     //  printf("number of original reductions %ld\n", reducelist.size());
@@ -257,7 +254,7 @@
           }
         if(!sendreuse) {
 	  if(myid == sendid) {
-            ExaComm::allocate(sendbuf, reduce.count);
+            CommBench::allocate(sendbuf, reduce.count);
             sendoffset = 0;
           }
           //if(printid == printid)
@@ -282,9 +279,9 @@
 	else {
           T *recvbuf_intra;
           if(myid == reduce.recvid) {
-	    ExaComm::allocate(recvbuf, reduce.count);
+	    CommBench::allocate(recvbuf, reduce.count);
             recvoffset = 0;
-            ExaComm::allocate(recvbuf_intra, reduce.count);
+            CommBench::allocate(recvbuf_intra, reduce.count);
           }
           reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
           std::vector<T*> inputbuf = {recvbuf, recvbuf_intra};
@@ -303,13 +300,13 @@
     }*/
 
     if(reducelist_extra.size())
-      reduce_ring(comm_mpi, numlevel, groupsize, lib, reducelist_extra, reducelist_intra, coll_list);
+      reduce_ring(numlevel, groupsize, lib, reducelist_extra, reducelist_intra, coll_list);
     else {
       // COMPLETE RING WITH INTRA-NODE TREE REDUCTION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
       std::vector<T*> recvbuff; // for memory recycling
-      reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, coll_list, recvbuff, 0);
+      reduce_tree(numlevel, groupsize_temp.data(), lib, reducelist_intra, numlevel - 1, coll_list, recvbuff, 0);
     }
 
     if(coll_temp->numcomm + coll_temp->numcompute)
@@ -319,12 +316,7 @@
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int numstripe, int stripeoffset, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void stripe(int numstripe, int stripeoffset, std::vector<REDUCE<T>> &reducelist, std::vector<P> &merge_list) {
 
     int nodesize = (stripeoffset == 0 ? 1 : numstripe * stripeoffset);
 
@@ -365,7 +357,7 @@
             size_t recvoffset;
             if(recver != reduce.recvid) {
               if(myid == recver) {
-                ExaComm::allocate(recvbuf, splitcount);
+                CommBench::allocate(recvbuf, splitcount);
                 recvoffset = 0;
               }
               merge_list.push_back(P(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
@@ -386,7 +378,7 @@
   }
 
   template <typename T>
-  void batch(std::vector<REDUCE<T>> &reducelist, int numbatch, std::vector<std::vector<REDUCE<T>>> &reduce_batch) {
+  void partition(std::vector<REDUCE<T>> &reducelist, int numbatch, std::vector<std::vector<REDUCE<T>>> &reduce_batch) {
     for(auto &reduce : reducelist) {
       size_t batchoffset = 0;
       for(int batch = 0; batch < numbatch; batch++) {

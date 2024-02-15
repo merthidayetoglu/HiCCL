@@ -5,19 +5,16 @@
     public:
 
     CommBench::Comm<T> *comm = nullptr;
-    ExaComm::Compute<T> *compute = nullptr;
+    Compute<T> *compute = nullptr;
 
     // COMMUNICATION
     // Command(CommBench::Comm<T> *comm) : comm(comm) {}
     // COMPUTATION
-    // Command(ExaComm::Compute<T> *compute) : compute(compute) {}
+    // Command(HiCCL::Compute<T> *compute) : compute(compute) {}
     // COMMUNICATION + COMPUTATION
-    Command(CommBench::Comm<T> *comm, ExaComm::Compute<T> *compute) : comm(comm), compute(compute) {}
+    Command(CommBench::Comm<T> *comm, Compute<T> *compute) : comm(comm), compute(compute) {}
 
     void measure(int warmup, int numiter, size_t count) {
-      int myid;
-      MPI_Comm_rank(comm_mpi, &myid);
-
       int numcomm = 0;
       int numcomp = 0;
       MPI_Allreduce(&(comm->numsend), &numcomm, 1, MPI_INT, MPI_SUM, comm_mpi);
@@ -43,11 +40,6 @@
   template <typename T>
   void implement(std::vector<std::list<Coll<T>*>> &coll_batch, std::vector<std::list<Command<T>>> &pipeline, int pipeoffset) {
 
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
-
     for(auto &coll : coll_batch[0])
         coll->report();
 
@@ -56,9 +48,9 @@
       double buffsize_tot = buffsize * sizeof(T) / 1.e9;
       double recycle_tot = recycle * sizeof(T) / 1.e9;
       double reuse_tot = reuse * sizeof(T) / 1.e9;
-      MPI_Allreduce(MPI_IN_PLACE, &buffsize_tot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &recycle_tot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &buffsize_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
+      MPI_Allreduce(MPI_IN_PLACE, &recycle_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
+      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi;
       if(myid == printid) {
         printf("********************************************\n\n");
         printf("total buffsize: %.2f GB, reuse: %.2f GB, recycle: %.2f GB\n", buffsize_tot, reuse_tot, recycle_tot);
@@ -71,7 +63,7 @@
       MPI_Allgather(&reuse, sizeof(size_t), MPI_BYTE, reuse_all.data(), sizeof(size_t), MPI_BYTE, comm_mpi);
       if(myid == printid) {
         for(int p = 0; p < numproc; p++)
-          printf("ExaComm Memory [%d]: %zu bytes (%.2f GB) - %.2f GB reused - %.2f GB recycled\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9, reuse_all[p] * sizeof(T) / 1.e9, recycle_all[p] * sizeof(T) / 1.e9);
+          printf("HiCCL Memory [%d]: %zu bytes (%.2f GB) - %.2f GB reused - %.2f GB recycled\n", p, buffsize_all[p] * sizeof(T), buffsize_all[p] * sizeof(T) / 1.e9, reuse_all[p] * sizeof(T) / 1.e9, recycle_all[p] * sizeof(T) / 1.e9);
         printf("coll_batch size %zu: ", coll_batch.size());
         for(int i = 0; i < coll_batch.size(); i++)
           printf("%zu ", coll_batch[i].size());
@@ -89,7 +81,7 @@
         for(auto &coll : coll_batch[i])
           lib_hash[coll->lib]++;
         for(int j = 0; j < i * pipeoffset; j++)
-          coll_batch[i].push_front(new ExaComm::Coll<T>(CommBench::MPI));
+          coll_batch[i].push_front(new Coll<T>(CommBench::MPI));
       }
       for(int i = 0; i < CommBench::numlib; i++)
         if(lib_hash[i]) {
@@ -104,7 +96,7 @@
     report_pipeline(coll_batch);
 
     {
-      using Iter = typename std::list<ExaComm::Coll<T>*>::iterator;
+      using Iter = typename std::list<Coll<T>*>::iterator;
       std::vector<Iter> coll_ptr(coll_batch.size());
       for(int i = 0; i < coll_batch.size(); i++)
         coll_ptr[i] = coll_batch[i].begin();
@@ -115,18 +107,18 @@
             finished = false;
         if(finished)
           break;
-        ExaComm::Coll<T> *coll_total = new ExaComm::Coll<T>(CommBench::null);
-        std::vector<ExaComm::Coll<T>*> coll_temp(lib.size());
+        Coll<T> *coll_total = new Coll<T>(CommBench::dummy);
+        std::vector<Coll<T>*> coll_temp(lib.size());
         std::vector<CommBench::Comm<T>*> comm_temp(lib.size());
-        std::vector<ExaComm::Compute<T>*> compute_temp(lib.size());
+        std::vector<Compute<T>*> compute_temp(lib.size());
         for(int i = 0; i < lib.size(); i++) {
-          coll_temp[i] = new ExaComm::Coll<T>((CommBench::library) lib[i]);
+          coll_temp[i] = new Coll<T>((CommBench::library) lib[i]);
           comm_temp[i] = new CommBench::Comm<T>((CommBench::library) lib[i]);
-          compute_temp[i] = new ExaComm::Compute<T>();
+          compute_temp[i] = new Compute<T>();
         }
         for(int i = 0; i < coll_batch.size(); i++)
           if(coll_ptr[i] != coll_batch[i].end()) {
-            ExaComm::Coll<T> *coll = *coll_ptr[i];
+            Coll<T> *coll = *coll_ptr[i];
             coll_ptr[i]++;
             for(int i = 0; i < coll->numcomm; i++) {
               coll_total->add(coll->sendbuf[i], coll->sendoffset[i], coll->recvbuf[i], coll->recvoffset[i], coll->count[i], coll->sendid[i], coll->recvid[i]);

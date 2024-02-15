@@ -24,14 +24,10 @@
 #endif
 
   template <typename T>
-  void allocate(T *&buffer, size_t n);
-
-  template <typename T>
   class Compute {
 
     public:
 
-    const MPI_Comm &comm_mpi = CommBench::comm_mpi;
     int numcomp = 0;
 
     std::vector<std::vector<T*>> inputbuf;
@@ -47,17 +43,11 @@
 #endif
 
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
-      int printid = CommBench::printid;
-      if(printid > -1 && printid < numproc) {
+      if(printid > -1) {
         if(myid == compid) {
           MPI_Send(&outputbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
           for(int in = 0; in < inputbuf.size(); in++)
-            MPI_Send(inputbuf.data() + in, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+            MPI_Send(&inputbuf[in], sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
         }
         if(myid == printid) {
           T *outputbuf;
@@ -75,7 +65,7 @@
         this->outputbuf.push_back(outputbuf);
         this->count.push_back(count);
         T **inputbuf_d;
-        allocate(inputbuf_d, inputbuf.size());
+	CommBench::allocate(inputbuf_d, inputbuf.size());
 #ifdef PORT_CUDA
         cudaMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), cudaMemcpyHostToDevice);
         stream.push_back(new cudaStream_t);
@@ -97,7 +87,7 @@
       for(int comp = 0; comp < numcomp; comp++) {
 #if defined PORT_CUDA || defined PORT_HIP
         int blocksize = 256;
-        reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
+        // reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #elif defined PORT_SYCL
         T *output = outputbuf[comp];
         int numinput = inputbuf[comp].size();
@@ -126,18 +116,14 @@
     }
 
     void report() {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
       std::vector<int> numcomp_all(numproc);
       std::vector<int> numinput_all(numproc);
       
-      MPI_Allgather(&numcomp, 1, MPI_INT, numcomp_all.data(), 1, MPI_INT, MPI_COMM_WORLD);
+      MPI_Allgather(&numcomp, 1, MPI_INT, numcomp_all.data(), 1, MPI_INT, comm_mpi);
       int numinput = 0;
       for(int comp = 0; comp < numcomp; comp++)
         numinput += inputbuf[comp].size();
-      MPI_Allgather(&numinput, 1, MPI_INT, numinput_all.data(), 1, MPI_INT, MPI_COMM_WORLD);
+      MPI_Allgather(&numinput, 1, MPI_INT, numinput_all.data(), 1, MPI_INT, comm_mpi);
       if(myid == printid) {
         printf("numcomp: ");
         for(int p = 0; p < numproc; p++)
@@ -148,10 +134,6 @@
     }
 
     void measure(int warmup, int numiter, size_t count) {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
       this->report();
       double times[numiter];
       if(myid == printid) {
@@ -164,14 +146,14 @@
 #elif defined PORT_HIP
         hipDeviceSynchronize();
 #endif
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_mpi);
         double time = MPI_Wtime();
         this->start();
         double start = MPI_Wtime() - time;
         this->wait();
         time = MPI_Wtime() - time;
-        MPI_Allreduce(MPI_IN_PLACE, &start, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, &start, 1, MPI_DOUBLE, MPI_MAX, comm_mpi);
+        MPI_Allreduce(MPI_IN_PLACE, &time, 1, MPI_DOUBLE, MPI_MAX, comm_mpi);
         if(iter < 0) {
           if(myid == printid)
             printf("startup %.2e warmup: %e\n", start, time);
@@ -219,60 +201,3 @@
       measure(warmup, numiter, count_total);
     }
   };
-
-  // MEMORY MANAGEMENT
-
-  template <typename T>
-  void allocate(T *&buffer, size_t n) {
-#ifdef PORT_CUDA
-    cudaMalloc(&buffer, n * sizeof(T));
-#elif defined PORT_HIP
-    hipMalloc(&buffer, n * sizeof(T));
-#elif defined PORT_SYCL
-    buffer = sycl::malloc_device<T>(n, CommBench::q);
-#else
-    buffer = new T[n];
-#endif
-    buffsize += n;
-  }
-
-  template <typename T>
-  void allocateHost(T *&buffer, size_t n) {
-#ifdef PORT_CUDA
-    cudaMallocHost(&buffer, n * sizeof(T));
-#elif defined PORT_HIP
-    hipHostMalloc(&buffer, n * sizeof(T));
-#elif defined PORT_SYCL
-    buffer = sycl::malloc_host<T>(n, CommBench::q);
-#else
-    buffer = new T[n];
-#endif
-  }
-
-  template <typename T>
-  void free(T *buffer) {
-#ifdef PORT_CUDA
-    cudaFree(buffer);
-#elif defined PORT_HIP
-    hipFree(buffer);
-#elif defined PORT_SYCL
-    sycl::free(buffer, CommBench::q);
-#else
-    delete[] buffer;
-#endif
-  }
-
-  template <typename T>
-  void freeHost(T *buffer) {
-#ifdef PORT_CUDA
-    cudaFreeHost(buffer);
-#elif defined PORT_HIP
-    hipHostFree(buffer);
-#elif defined PORT_SYCL
-    sycl::free(buffer, CommBench::q);
-#else
-    delete[] buffer;
-#endif
-  }
-
-

@@ -28,6 +28,11 @@
 
     public:
 
+    T *sendbuf = nullptr;
+    size_t sendcount = 0;
+    T *recvbuf = nullptr;
+    size_t recvcount = 0;
+
     // FUTURE PIPELINE
     std::vector<std::list<Command<T>>> command_batch;
     std::vector<std::list<Coll<T>*>> coll_batch;
@@ -35,16 +40,14 @@
     void add_fence() {
       bcast_epoch.push_back(std::vector<BROADCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
+      if(myid == printid)
+        printf("Add epoch %d\n", numepoch);
       numepoch++;
     }
 
     Comm() {
       // INITIALIZE COMMBENCH
-#ifdef CAP_NCCL
-      CommBench::Comm<T> comm(CommBench::NCCL);
-#else
       CommBench::Comm<T> comm(CommBench::MPI);
-#endif
       // DEFAULT EPOCH
       this->add_fence();
     }
@@ -66,11 +69,6 @@
     // INITIALIZE BROADCAST AND REDUCTION TREES
     void init(int numlevel, int groupsize[], CommBench::library lib[], int numstripe, int stripeoffset, int numbatch, int pipelineoffset) {
 
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
-
       MPI_Barrier(comm_mpi);
       double init_time = MPI_Wtime();
 
@@ -78,13 +76,13 @@
         printf("NUMBER OF EPOCHS: %d\n", numepoch);
         for(int epoch = 0; epoch < numepoch; epoch++)
           printf("epoch %d: %zu bcast %zu reduction\n", epoch, bcast_epoch[epoch].size(), reduce_epoch[epoch].size());
-        printf("Initialize ExaComm with %d levels\n", numlevel);
+        printf("Initialize HiCCL with %d levels\n", numlevel);
         for(int level = 0; level < numlevel; level++) {
           printf("level %d groupsize %d library: ", level, groupsize[level]);
           switch(lib[level]) {
             case CommBench::IPC  : printf("IPC"); break;
             case CommBench::MPI  : printf("MPI"); break;
-            case CommBench::NCCL : printf("NCCL"); break;
+            case CommBench::XCCL : printf("XCCL"); break;
             default : break;
           }
           if(level == 0)
@@ -110,13 +108,13 @@
         if(bcastlist.size()) {
           // PARTITION INTO BATCHES
           std::vector<std::vector<BROADCAST<T>>> bcast_batch(numbatch);
-          ExaComm::batch(bcastlist, numbatch, bcast_batch);
+          partition(bcastlist, numbatch, bcast_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
 
             // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
-            ExaComm::stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
+            stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
             // ExaComm::stripe_ring(comm_mpi, numstripe, bcast_batch[batch], split_list);
             // IMPLEMENT WITH IPC
             // Coll<T> *stripe = new Coll<T>(CommBench::MPI);
@@ -159,16 +157,16 @@
 
             // APPLY REDUCE TREE TO ROOTS FOR STRIPING
             std::vector<T*> recvbuff; // for memory recycling
-            ExaComm::reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
             // std::vector<BROADCAST<T>> bcast_temp; // for accumulating intra-node communications for tree (internally)
             // ExaComm::bcast_ring(comm_mpi, 1, lib[numlevel-1], split_list, bcast_temp, coll_batch[batch], &allocate);
 
             // APPLY RING TO BRANCHES ACROSS NODES
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, coll_batch[batch], &allocate);
+            bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, coll_batch[batch]);
 
             // APPLY TREE TO THE LEAVES WITHIN NODES
-            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
+            bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
           }
         }
         // INIT REDUCTION
@@ -176,17 +174,17 @@
         if(reducelist.size()) {
           // PARTITION INTO BATCHES
           std::vector<std::vector<REDUCE<T>>> reduce_batch(numbatch);
-          ExaComm::batch(reducelist, numbatch, reduce_batch);
+          partition(reducelist, numbatch, reduce_batch);
           // FOR EACH BATCH
           for(int batch = 0; batch < numbatch; batch++) {
             // STRIPE REDUCTION
             std::vector<BROADCAST<T>> merge_list;
-            ExaComm::stripe(comm_mpi, numstripe, stripeoffset, reduce_batch[batch], merge_list);
+            stripe(comm_mpi, numstripe, stripeoffset, reduce_batch[batch], merge_list);
             // HIERARCHICAL REDUCTION RING + TREE
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
-            ExaComm::reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
+            reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
             // COMPLETE STRIPING BY INTRA-NODE GATHER
-            ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
+            bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
 	  }
         }
       }
@@ -199,7 +197,7 @@
     }
 
     void run() {
-      using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+      using Iter = typename std::list<Command<T>>::iterator;
       std::vector<Iter> commandptr(command_batch.size());
       for(int i = 0; i < command_batch.size(); i++)
         commandptr[i] = command_batch[i].begin();
@@ -225,12 +223,13 @@
       }
     }
 
-    void measure(int warmup, int numiter, size_t count) {
+    void run(T *sendbuf, T *recvbuf) {
+      CommBench::memcpyD2D(this->sendbuf, sendbuf, sendcount);
+      run();
+      CommBench::memcpyD2D(recvbuf, this->recvbuf, recvcount);
+    }
 
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
+    void measure(int warmup, int numiter, size_t count) {
 
       if(myid == printid) {
         printf("command_batch size %zu\n", command_batch.size());
@@ -238,7 +237,7 @@
       }
       MPI_Barrier(comm_mpi);
       {
-        using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+        using Iter = typename std::list<Command<T>>::iterator;
         std::vector<Iter> commandptr(command_batch.size());
         for(int i = 0; i < command_batch.size(); i++)
           commandptr[i] = command_batch[i].begin();
@@ -275,10 +274,6 @@
     }
 
     void report() {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
       if(myid == printid) {
         printf("command_batch size %zu\n", command_batch.size());
         printf("commandlist size %zu\n", command_batch[0].size());
@@ -293,10 +288,6 @@
     }
 
     void time() {
-      int myid;
-      int numproc;
-      MPI_Comm_rank(comm_mpi, &myid);
-      MPI_Comm_size(comm_mpi, &numproc);
       if(myid == printid) {
         printf("********************************************\n\n");
         printf("pipeline depth %zu\n", command_batch.size());
@@ -305,7 +296,7 @@
       }
       int print_batch_size = (command_batch.size() > 16 ? 16 : command_batch.size());
       {
-        using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+        using Iter = typename std::list<Command<T>>::iterator;
         std::vector<Iter> commandptr(print_batch_size);
         for(int i = 0; i < print_batch_size; i++)
           commandptr[i] = command_batch[i].begin();
@@ -330,14 +321,14 @@
                     switch(commandptr[i]->comm->lib) {
                       case CommBench::IPC :  printf(" IPC"); break;
                       case CommBench::MPI :  printf(" MPI"); break;
-		      case CommBench::NCCL : printf(" NCL"); break;
+		      case CommBench::XCCL : printf(" XCCL"); break;
                       default : break;
                     }
                   else // printf("-   ");
                     switch(commandptr[i]->comm->lib) {
-                      case CommBench::IPC :  printf("I   "); break;
-                      case CommBench::MPI :  printf("M   "); break;
-                      case CommBench::NCCL : printf("N   "); break;
+                      case CommBench::IPC  : printf("I   "); break;
+                      case CommBench::MPI  : printf("M   "); break;
+                      case CommBench::XCCL : printf("X   "); break;
                       default : break;
                     }
                 }
@@ -375,7 +366,7 @@
         }
       }
 
-      using Iter = typename std::list<ExaComm::Command<T>>::iterator;
+      using Iter = typename std::list<Command<T>>::iterator;
       std::vector<Iter> commandptr(command_batch.size());
       for(int i = 0; i < command_batch.size(); i++)
         commandptr[i] = command_batch[i].begin();

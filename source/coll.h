@@ -115,7 +115,7 @@
       printf("coll_list size %zu\n", coll_batch[0].size());
       printf("\n");
       int print_batch_size = (coll_batch.size() > 16 ? 16 : coll_batch.size());
-      using Iter = typename std::list<ExaComm::Coll<T>*>::iterator;
+      using Iter = typename std::list<Coll<T>*>::iterator;
       std::vector<Iter> coll_ptr(print_batch_size);
       for(int i = 0; i < print_batch_size; i++)
         coll_ptr[i] = coll_batch[i].begin();
@@ -139,11 +139,10 @@
               CommBench::print_lib((*coll_ptr[i])->lib);
             else
               switch((*coll_ptr[i])->lib) {
-                case CommBench::null : printf(" - "); break;
-                case CommBench::IPC  : printf(" I "); break;
-                case CommBench::MPI  : printf(" M "); break;
-                case CommBench::NCCL : printf(" N "); break;
-                case CommBench::STAGE  : printf(" S "); break;
+                case CommBench::dummy : printf(" - "); break;
+                case CommBench::IPC : printf(" I "); break;
+                case CommBench::MPI : printf(" M "); break;
+                case CommBench::XCCL : printf(" X "); break;
                 case CommBench::numlib  : printf(" NUMLIB "); break;
               }
             if((*coll_ptr[i])->numcompute)

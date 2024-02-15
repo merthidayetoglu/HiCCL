@@ -2,40 +2,37 @@
   template <typename T>
   struct BROADCAST {
     public:
-    T* const sendbuf;
-    const size_t sendoffset;
-    T* const recvbuf;
-    const size_t recvoffset;
-    const size_t count;
-    const int sendid;
+    T* sendbuf;
+    size_t sendoffset;
+    T* recvbuf;
+    size_t recvoffset;
+    size_t count;
+    int sendid;
     std::vector<int> recvids;
 
-    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) {}
-    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid)
-    : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid) { recvids.push_back(recvid); }
-
-    void report(int id) {
-      if(printid == sendid) {
-        MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
-        MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
+    void report() {
+      if(printid < 0)
+        return;
+      if(myid == sendid) {
+        MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+        MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);
       }
       for(auto &recvid : this->recvids) {
-        if(printid == recvid) {
-          MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, id, 0, MPI_COMM_WORLD);
-          MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, id, 0, MPI_COMM_WORLD);
+        if(myid == recvid) {
+          MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
+          MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);
         }
       }
-      if(printid == id) {
+      if(myid == printid) {
         T* sendbuf_sendid;
         size_t sendoffset_sendid;
-        MPI_Recv(&sendbuf_sendid, sizeof(T*), MPI_BYTE, sendid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&sendoffset_sendid, sizeof(size_t), MPI_BYTE, sendid, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&sendbuf_sendid, sizeof(T*), MPI_BYTE, sendid, 0, comm_mpi, MPI_STATUS_IGNORE);
+        MPI_Recv(&sendoffset_sendid, sizeof(size_t), MPI_BYTE, sendid, 0, comm_mpi, MPI_STATUS_IGNORE);
 	std::vector<T*> recvbuf_recvid(recvids.size());
 	std::vector<size_t> recvoffset_recvid(recvids.size());
         for(int recv = 0; recv < recvids.size(); recv++) {
-          MPI_Recv(recvbuf_recvid.data() + recv, sizeof(T*), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-          MPI_Recv(recvoffset_recvid.data() + recv, sizeof(size_t), MPI_BYTE, recvids[recv], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+          MPI_Recv(&recvbuf_recvid[recv], sizeof(T*), MPI_BYTE, recvids[recv], 0, comm_mpi, MPI_STATUS_IGNORE);
+          MPI_Recv(&recvoffset_recvid[recv], sizeof(size_t), MPI_BYTE, recvids[recv], 0, comm_mpi, MPI_STATUS_IGNORE);
         }
         printf("BROADCAST report: count %lu\n", count);
         char text[1000];
@@ -49,15 +46,18 @@
         printf("\n");
       }
     }
+
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, std::vector<int> &recvids) : sendbuf(sendbuf), sendoffset(sendoffset), recvbuf(recvbuf), recvoffset(recvoffset), count(count), sendid(sendid), recvids(recvids) { 
+      report();
+    }
+    BROADCAST(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      std::vector<int> proclist = {recvid};
+      BROADCAST(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, proclist);
+    }
   };
 
   template <typename T>
-  void bcast_tree(const MPI_Comm &comm_mpi, int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> bcastlist, int level, std::list<ExaComm::Coll<T>*> &coll_list) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void bcast_tree(int numlevel, int groupsize[], CommBench::library lib[], std::vector<BROADCAST<T>> bcastlist, int level, std::list<Coll<T>*> &coll_list) {
 
     if(numproc != groupsize[0]) {
       printf("ERROR!!! groupsize[0] must be equal to numproc.\n");
@@ -68,7 +68,7 @@
     if(bcastlist.size() == 0)
       return;
 
-    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib[level-1]);
+    Coll<T> *coll_temp = new Coll<T>(lib[level-1]);
 
     std::vector<BROADCAST<T>> bcastlist_new;
 
@@ -138,7 +138,7 @@
                 }
                 else {
                   if(myid == recvid) {
-                    ExaComm::allocate(recvbuf, bcast.count);
+                    CommBench::allocate(recvbuf, bcast.count);
                     recvoffset = 0;
                   }
                   //if(printid == printid)
@@ -157,20 +157,15 @@
       coll_list.push_back(coll_temp);
     else
       delete coll_temp;
-    bcast_tree(comm_mpi, numlevel, groupsize, lib, bcastlist_new, level + 1, coll_list);
+    bcast_tree(numlevel, groupsize, lib, bcastlist_new, level + 1, coll_list);
   }
 
   template<typename T>
-  void bcast_ring(const MPI_Comm &comm_mpi, int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<ExaComm::Coll<T>*> &coll_list, void (*allocate)(T*&, size_t)) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void bcast_ring(int groupsize, CommBench::library lib, std::vector<BROADCAST<T>> &bcastlist, std::vector<BROADCAST<T>> &bcastlist_intra, std::list<Coll<T>*> &coll_list) {
 
     std::vector<BROADCAST<T>> bcastlist_extra;
 
-    ExaComm::Coll<T> *coll_temp = new ExaComm::Coll<T>(lib);
+    Coll<T> *coll_temp = new Coll<T>(lib);
 
     for(auto &bcast : bcastlist) {
       int sendnode = bcast.sendid / groupsize;
@@ -205,7 +200,7 @@
             reuse += bcast.count;
           }
           else {
-            allocate(recvbuf, bcast.count);
+            CommBench::allocate(recvbuf, bcast.count);
             recvoffset = 0;
           }
         }
@@ -220,21 +215,16 @@
       delete coll_temp;
 
     if(bcastlist_extra.size()) // IMPLEMENT RING FOR EXTRA-NODE COMMUNICATIONS (IF THERE IS STILL LEFT)
-      bcast_ring(comm_mpi, groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list, allocate);
+      bcast_ring(groupsize, lib, bcastlist_extra, bcastlist_intra, coll_list);
     /*else { // ELSE IMPLEMENT TREE FOR INTRA-NODE COMMUNICATION
       std::vector<int> groupsize_temp(groupsize, groupsize + numlevel);
       groupsize_temp[0] = numproc;
-      ExaComm::bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcastlist_intra, 1, coll_list);
+      bcast_tree(numlevel, groupsize_temp.data(), lib, bcastlist_intra, 1, coll_list);
     }*/
   }
 
   template <typename T, typename P>
-  void stripe(const MPI_Comm &comm_mpi, int numstripe, int stripeoffset, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
-
-    int myid;
-    int numproc;
-    MPI_Comm_rank(comm_mpi, &myid);
-    MPI_Comm_size(comm_mpi, &numproc);
+  void stripe(int numstripe, int stripeoffset, std::vector<BROADCAST<T>> &bcastlist, std::vector<P> &split_list) {
 
     int nodesize = (stripeoffset == 0 ? 1 : numstripe * stripeoffset);
 
@@ -292,7 +282,7 @@
               }
               else {
                 if(myid == sender) {
-                  ExaComm::allocate(sendbuf, splitcount);
+                  CommBench::allocate(sendbuf, splitcount);
                   sendoffset = 0;
                 }
               }
@@ -316,7 +306,7 @@
   }
 
   template <typename T>
-  void batch(std::vector<BROADCAST<T>> &bcastlist, int numbatch, std::vector<std::vector<BROADCAST<T>>> &bcast_batch) {
+  void partition(std::vector<BROADCAST<T>> &bcastlist, int numbatch, std::vector<std::vector<BROADCAST<T>>> &bcast_batch) {
     for(auto &bcast : bcastlist) {
       size_t batchoffset = 0;
       for(int batch = 0; batch < numbatch; batch++) {
