@@ -21,6 +21,7 @@ int main() {
 
     allreduce.init();
     allreduce.set_endpoints(sendbuf, count, recvbuf, count);
+    CommBench::report_memory();
   }
 
   allreduce.run(weights, weights);
