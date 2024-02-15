@@ -50,7 +50,7 @@
       double reuse_tot = reuse * sizeof(T) / 1.e9;
       MPI_Allreduce(MPI_IN_PLACE, &buffsize_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
       MPI_Allreduce(MPI_IN_PLACE, &recycle_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
-      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi;
+      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
       if(myid == printid) {
         printf("********************************************\n\n");
         printf("total buffsize: %.2f GB, reuse: %.2f GB, recycle: %.2f GB\n", buffsize_tot, reuse_tot, recycle_tot);

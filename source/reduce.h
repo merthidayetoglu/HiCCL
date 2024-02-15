@@ -2,13 +2,13 @@
   template <typename T>
   struct REDUCE {
     public:
-    T* const sendbuf;
-    const size_t sendoffset;
-    T* const recvbuf;
-    const size_t recvoffset;
-    const size_t count;
+    T* sendbuf;
+    size_t sendoffset;
+    T* recvbuf;
+    size_t recvoffset;
+    size_t count;
     std::vector<int> sendids;
-    const int recvid;
+    int recvid;
 
     void report() {
       if(printid < 0)

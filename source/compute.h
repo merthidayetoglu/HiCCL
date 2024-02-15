@@ -87,7 +87,7 @@
       for(int comp = 0; comp < numcomp; comp++) {
 #if defined PORT_CUDA || defined PORT_HIP
         int blocksize = 256;
-        // reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
+        reduce_kernel<T><<<(count[comp] + blocksize - 1) / blocksize, blocksize, 0, *stream[comp]>>> (outputbuf[comp], count[comp], inputbuf_d[comp], inputbuf[comp].size());
 #elif defined PORT_SYCL
         T *output = outputbuf[comp];
         int numinput = inputbuf[comp].size();

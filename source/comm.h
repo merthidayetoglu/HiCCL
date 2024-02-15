@@ -114,7 +114,7 @@
 
             // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
-            stripe(comm_mpi, numstripe, stripeoffset, bcast_batch[batch], split_list);
+            stripe(numstripe, stripeoffset, bcast_batch[batch], split_list);
             // ExaComm::stripe_ring(comm_mpi, numstripe, bcast_batch[batch], split_list);
             // IMPLEMENT WITH IPC
             // Coll<T> *stripe = new Coll<T>(CommBench::MPI);
@@ -157,16 +157,16 @@
 
             // APPLY REDUCE TREE TO ROOTS FOR STRIPING
             std::vector<T*> recvbuff; // for memory recycling
-            reduce_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            reduce_tree(numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
             // std::vector<BROADCAST<T>> bcast_temp; // for accumulating intra-node communications for tree (internally)
             // ExaComm::bcast_ring(comm_mpi, 1, lib[numlevel-1], split_list, bcast_temp, coll_batch[batch], &allocate);
 
             // APPLY RING TO BRANCHES ACROSS NODES
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
-            bcast_ring(comm_mpi, groupsize[0], lib[0], bcast_batch[batch], bcast_intra, coll_batch[batch]);
+            bcast_ring(groupsize[0], lib[0], bcast_batch[batch], bcast_intra, coll_batch[batch]);
 
             // APPLY TREE TO THE LEAVES WITHIN NODES
-            bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
+            bcast_tree(numlevel, groupsize_temp.data(), lib, bcast_intra, 1, coll_batch[batch]);
           }
         }
         // INIT REDUCTION
@@ -179,12 +179,12 @@
           for(int batch = 0; batch < numbatch; batch++) {
             // STRIPE REDUCTION
             std::vector<BROADCAST<T>> merge_list;
-            stripe(comm_mpi, numstripe, stripeoffset, reduce_batch[batch], merge_list);
+            stripe(numstripe, stripeoffset, reduce_batch[batch], merge_list);
             // HIERARCHICAL REDUCTION RING + TREE
 	    std::vector<REDUCE<T>> reduce_intra; // for accumulating intra-node communications for tree (internally)
-            reduce_ring(comm_mpi, numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
+            reduce_ring(numlevel, groupsize, lib, reduce_batch[batch], reduce_intra, coll_batch[batch]);
             // COMPLETE STRIPING BY INTRA-NODE GATHER
-            bcast_tree(comm_mpi, numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
+            bcast_tree(numlevel, groupsize_temp.data(), lib, merge_list, 1, coll_batch[batch]);
 	  }
         }
       }
