@@ -63,7 +63,10 @@
         for(int i = 0; i < hierarchy.size(); i++) {
           printf("  level %d factor: %d library: ", i, hierarchy[i]);
           CommBench::print_lib(library[i]);
-          printf("\n");
+	  if(hierarchy[0] == numproc && library[0] == CommBench::MPI)
+            printf(" (default)\n");
+          else
+            printf("\n");
         }
         printf("numstripe: %d", numstripe);
         if(numstripe == 1)
