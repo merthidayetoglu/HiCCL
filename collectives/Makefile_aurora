@@ -1,0 +1,24 @@
+# ----- Make Macros -----
+
+CXX = mpicxx
+CXXFLAGS = -cxx=icpx -fsycl -fsycl-targets=spir64
+
+LD_FLAGS = -qopenmp -fsycl -lze_loader -lccl
+CMPIFLAGS =
+CMPILIBFLAGS = 
+
+TARGETS = HiCCL
+OBJECTS = main.o
+
+# ----- Make Rules -----
+
+all:	$(TARGETS)
+
+%.o : %.cpp
+	${CXX} ${CXXFLAGS} ${CMPIFLAGS} $< -c -o $@
+
+HiCCL: $(OBJECTS)
+	$(CXX) -o $@ $(OBJECTS) $(CMPILIBFLAGS) $(LD_FLAGS)
+
+clean:
+	rm -f $(TARGETS) *.o *.o.* *.txt *.bin core *.html *.xml
