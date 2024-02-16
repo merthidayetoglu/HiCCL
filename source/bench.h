@@ -1,5 +1,5 @@
-template <typename T, typename Comm>
-void measure(size_t count, int warmup, int numiter, Comm &comm) {
+template <typename T>
+void measure(int warmup, int numiter, size_t count, Comm<T> &comm) {
 
   double times[numiter];
   if(myid == printid)
@@ -61,8 +61,6 @@ void measure(size_t count, int warmup, int numiter, Comm &comm) {
 
 template <typename T, typename Comm>
 void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root, Comm &comm) {
-
-  enum pattern {dummy, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
   T *sendbuf;
   T *recvbuf;

@@ -36,13 +36,14 @@ namespace HiCCL {
   static size_t recycle = 0;
   static size_t reuse = 0;
 
-  enum pattern {all, others};
+  enum pattern {all, others, gather, scatter, broadcast, reduce, alltoall, allgather, reducescatter, allreduce};
 
 #include "source/compute.h"
 #include "source/coll.h"
 #include "source/command.h"
 #include "source/reduce.h"
 #include "source/broadcast.h"
+// #include "source/init.h"
 #include "source/comm.h"
 #include "source/bench.h"
 
