@@ -34,10 +34,10 @@
     int ringnodes = 1;
     int pipedepth = 1;
     // ENDPOINTS
-    T *sendbuf;
-    T *recvbuf;
-    size_t sendcount;
-    size_t recvcount;
+    T *sendbuf = nullptr;
+    T *recvbuf = nullptr;
+    size_t sendcount = 0;
+    size_t recvcount = 0;
 
     // SET HIERARCHY
     void set_hierarchy(std::vector<int> hierarchy, std::vector<CommBench::library> library) {
@@ -84,12 +84,12 @@
           printf(" (default)\n");
         else
           printf("\n");
-        printf("sendbuf: %p, sendcount %ld\n", sendbuf, sendcount);
+        printf("sendbuf: %p, sendcount %ld", sendbuf, sendcount);
         if(sendbuf == nullptr)
           printf(" (default)\n");
         else
           printf("\n");
-        printf("recvbuf: %p, recvcount %ld\n", recvbuf, recvcount);
+        printf("recvbuf: %p, recvcount %ld", recvbuf, recvcount);
         if(recvbuf == nullptr)
           printf(" (default)\n");
         else
@@ -122,10 +122,18 @@
     void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
       bcast_epoch.back().push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
+    void add_bcast(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, pattern recv_pattern) {
+      int recvid = (recv_pattern == pattern::others ? -1 : numproc);
+      bcast_epoch.back().push_back(BROADCAST<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+    }
     void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, std::vector<int> &sendids, int recvid) {
       reduce_epoch.back().push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendids, recvid));
     }
     void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, int sendid, int recvid) {
+      reduce_epoch.back().push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
+    }
+    void add_reduce(T *sendbuf, size_t sendoffset, T *recvbuf, size_t recvoffset, size_t count, pattern send_pattern, int recvid) {
+      int sendid = (send_pattern == pattern::others ? -1 : numproc);
       reduce_epoch.back().push_back(REDUCE<T>(sendbuf, sendoffset, recvbuf, recvoffset, count, sendid, recvid));
     }
 
@@ -270,6 +278,9 @@
     }
 
     void run() {
+      printf("command_batch size %ld\n", command_batch.size());
+      for(auto list : command_batch)
+        printf("list size: %ld\n", list.size());
       using Iter = typename std::list<Command<T>>::iterator;
       std::vector<Iter> commandptr(command_batch.size());
       for(int i = 0; i < command_batch.size(); i++)

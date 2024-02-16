@@ -36,6 +36,8 @@ namespace HiCCL {
   static size_t recycle = 0;
   static size_t reuse = 0;
 
+  enum pattern {all, others};
+
 #include "source/compute.h"
 #include "source/coll.h"
 #include "source/command.h"
