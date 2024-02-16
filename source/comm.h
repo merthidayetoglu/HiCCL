@@ -21,8 +21,6 @@
     std::vector<std::vector<REDUCE<T>>> reduce_epoch;
     int numepoch = 0;
 
-    public:
-
     // HiCCL PARAMETERS
     std::vector<int> hierarchy = {numproc};
     std::vector<CommBench::library> library = {CommBench::MPI};
@@ -35,7 +33,13 @@
     size_t sendcount = 0;
     size_t recvcount = 0;
 
-    // SET HIERARCHY
+    public:
+
+    // PIPELINE
+    std::vector<std::list<Command<T>>> command_batch;
+    std::vector<std::list<Coll<T>*>> coll_batch;
+
+    // SETTERS
     void set_hierarchy(std::vector<int> hierarchy, std::vector<CommBench::library> library) {
       if(hierarchy.size() != library.size()) {
         if(myid == printid)
@@ -47,7 +51,12 @@
         this->library = library;
       }
     }
-
+    void set_pipedepth(int pipedepth) {
+      this->pipedepth = pipedepth;
+    }
+    void set_numstripe(int numstripe) {
+      this->numstripe = numstripe;
+    }
     // SET ENDPOINTS
     void set_endpoints(T *sendbuf, size_t sendcount, T *recvbuf, size_t recvcount) {
       this->sendbuf = sendbuf;
@@ -97,10 +106,6 @@
       }
     }
 
-    // FUTURE PIPELINE
-    std::vector<std::list<Command<T>>> command_batch;
-    std::vector<std::list<Coll<T>*>> coll_batch;
-
     void add_fence() {
       bcast_epoch.push_back(std::vector<BROADCAST<T>>());
       reduce_epoch.push_back(std::vector<REDUCE<T>>());
@@ -110,13 +115,13 @@
     }
 
     Comm() {
-      // DEFAULT EPOCH
-      add_fence();
       // DEFAULT PARAMETERS
       if(myid == printid) {
         printf("DEFAULT PARAMETERS:\n");
         print_parameters();
       }
+      // DEFAULT EPOCH
+      add_fence();
     }
 
     // ADD FUNCTIONS FOR BROADCAST AND REDUCE PRIMITIVES
@@ -170,9 +175,6 @@
     }
 
     void run() {
-      //printf("command_batch size %ld\n", command_batch.size());
-      //for(auto list : command_batch)
-      //  printf("list size: %ld\n", list.size());
       using Iter = typename std::list<Command<T>>::iterator;
       std::vector<Iter> commandptr(command_batch.size());
       for(int i = 0; i < command_batch.size(); i++)
@@ -293,18 +295,16 @@
                   else        printf("  ");
                   if(numrecv) printf("+%d", numrecv);
                   else        printf("  ");
-                  if(numsend+numrecv)
-                    switch(commandptr[i]->comm->lib) {
-                      case CommBench::IPC :  printf(" IPC"); break;
-                      case CommBench::MPI :  printf(" MPI"); break;
-		      case CommBench::XCCL : printf(" XCCL"); break;
-                      default : break;
-                    }
+                  if(numsend+numrecv) {
+                    printf(" ");
+                    CommBench::print_lib(commandptr[i]->comm->lib);
+                  }
                   else // printf("-   ");
                     switch(commandptr[i]->comm->lib) {
-                      case CommBench::IPC  : printf("I   "); break;
-                      case CommBench::MPI  : printf("M   "); break;
-                      case CommBench::XCCL : printf("X   "); break;
+                      case CommBench::IPC     : printf("P   "); break;
+                      case CommBench::IPC_get : printf("G   "); break;
+                      case CommBench::MPI     : printf("M   "); break;
+                      case CommBench::XCCL    : printf("X   "); break;
                       default : break;
                     }
                 }

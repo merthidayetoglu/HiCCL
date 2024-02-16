@@ -8,12 +8,7 @@
         printf("Initialize HiCCL with %d levels\n", numlevel);
         for(int level = 0; level < numlevel; level++) {
           printf("level %d groupsize %d library: ", level, groupsize[level]);
-          switch(lib[level]) {
-            case CommBench::IPC  : printf("IPC"); break;
-            case CommBench::MPI  : printf("MPI"); break;
-            case CommBench::XCCL : printf("XCCL"); break;
-            default : break;
-          }
+          CommBench::print_lib(lib[level]);
           if(level == 0)
             if(groupsize[0] != numproc)
               printf(" *");
