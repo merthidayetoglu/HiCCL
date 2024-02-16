@@ -63,7 +63,7 @@
     void report_parameters() {
       if(myid == printid) {
         printf("**************** HiCCL PARAMETERS\n");
-        printf("%d-level hierarchy:\n", hierarchy.size());
+        printf("%ld-level hierarchy:\n", hierarchy.size());
         for(int i = 0; i < hierarchy.size(); i++) {
           printf("  level %d factor: %d library: ", i, hierarchy[i]);
           CommBench::print_lib(library[i]);
@@ -112,7 +112,9 @@
 
     Comm() {
       // DEFAULT EPOCH
-      this->add_fence();
+      add_fence();
+      // DEFAULT PARAMETERS
+      report_parameters();
     }
 
     // ADD FUNCTIONS FOR BROADCAST AND REDUCE PRIMITIVES
