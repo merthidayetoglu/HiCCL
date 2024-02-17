@@ -22,9 +22,9 @@ int main() {
     allreduce.add_bcast(recvbuf, 0, recvbuf, 0, count, root, HiCCL::others); // root -> all - root
 
     // SET PARAMETERS
-    // allreduce.set_hierarchy(std::vector<int> {2, 4}, std::vector<CommBench::library> {CommBench::MPI, CommBench::IPC});
+    // allreduce.set_hierarchy(std::vector<int> {2, 4}, std::vector<CommBench::library> {CommBench::XCCL, CommBench::IPC_get});
     // allreduce.set_numstripe(4);
-    // allreduce.set_pipedepth(8);
+    // allreduce.set_pipedepth(12);
     allreduce.set_endpoints(sendbuf, count, recvbuf, count);
     allreduce.init();
     CommBench::report_memory();

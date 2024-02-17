@@ -81,7 +81,7 @@
         for(auto &coll : coll_batch[i])
           lib_hash[coll->lib]++;
         for(int j = 0; j < i * pipeoffset; j++)
-          coll_batch[i].push_front(new Coll<T>(CommBench::MPI));
+          coll_batch[i].push_front(new Coll<T>(CommBench::dummy));
       }
       for(int i = 0; i < CommBench::numlib; i++)
         if(lib_hash[i]) {
@@ -92,7 +92,7 @@
         }
     }
 
-    // REPORT DEGERATE PIPELINE
+    // REPORT DEGENERATE PIPELINE
     report_pipeline(coll_batch);
 
     {
