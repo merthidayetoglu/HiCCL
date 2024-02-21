@@ -124,6 +124,7 @@
               if(myid == recvid) {
                 CommBench::allocate(outputbuf, reduce.count);
                 outputoffset = 0;
+                buffsize += reduce.count;
               }
               // if(printid == printid)
               //    printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d send malloc %zu\n", recvid, reduce.count * sizeof(T));
@@ -146,6 +147,7 @@
                     if(myid == recvid) {
                       CommBench::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
+                      buffsize += reduce.count;
                       numrecvbuf++;
                     }
                     //if(printid == printid)
@@ -257,6 +259,7 @@
             sendoffset = reduce.sendoffset;
             sendreuse = true;
             sendids[sendnode].clear();
+	    reuse += reduce.count;
             //if(printid == printid)
             //  printf("proc %d reuse %ld\n", sendid, reduce.count);
           }
@@ -264,6 +267,7 @@
 	  if(myid == sendid) {
             CommBench::allocate(sendbuf, reduce.count);
             sendoffset = 0;
+            buffsize += reduce.count;
           }
           //if(printid == printid)
           //  printf("proc %d allocate %ld\n", sendid, reduce.count);
@@ -288,8 +292,10 @@
           T *recvbuf_intra;
           if(myid == reduce.recvid) {
 	    CommBench::allocate(recvbuf, reduce.count);
+            buffsize += reduce.count;
             recvoffset = 0;
             CommBench::allocate(recvbuf_intra, reduce.count);
+            buffsize += reduce.count;
           }
           reducelist_intra.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset, recvbuf_intra, 0, reduce.count, sendids_intra, reduce.recvid));
           std::vector<T*> inputbuf = {recvbuf, recvbuf_intra};
@@ -367,6 +373,7 @@
               if(myid == recver) {
                 CommBench::allocate(recvbuf, splitcount);
                 recvoffset = 0;
+                buffsize += splitcount;
               }
               merge_list.push_back(P(recvbuf, recvoffset, reduce.recvbuf, reduce.recvoffset + splitoffset, splitcount, recver, reduce.recvid));
             }
@@ -374,6 +381,7 @@
               if(myid == recver) {
                 recvbuf = reduce.recvbuf;
                 recvoffset = reduce.recvoffset + splitoffset;
+                reuse += splitcount;
               }
             reducelist.push_back(REDUCE<T>(reduce.sendbuf, reduce.sendoffset + splitoffset, recvbuf, recvoffset, splitcount, reduce.sendids, recver));
             splitoffset += splitcount;

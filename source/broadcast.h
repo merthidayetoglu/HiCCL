@@ -148,6 +148,7 @@
                   if(myid == recvid) {
                     CommBench::allocate(recvbuf, bcast.count);
                     recvoffset = 0;
+                    buffsize += bcast.count;
                   }
                   //if(printid == printid)
                   //  printf("^^^^^^^^^^^^^^^^^^^^^^^ recvid %d myid %d allocates\n", recvid, myid);
@@ -210,6 +211,7 @@
           else {
             CommBench::allocate(recvbuf, bcast.count);
             recvoffset = 0;
+            buffsize += bcast.count;
           }
         }
         coll_temp->add(bcast.sendbuf, bcast.sendoffset, recvbuf, recvoffset, bcast.count, bcast.sendid, recvid);
@@ -292,6 +294,7 @@
                 if(myid == sender) {
                   CommBench::allocate(sendbuf, splitcount);
                   sendoffset = 0;
+                  buffsize += splitcount;
                 }
               }
               split_list.push_back(P(bcast.sendbuf, bcast.sendoffset + splitoffset, sendbuf, sendoffset, splitcount, bcast.sendid, sender));

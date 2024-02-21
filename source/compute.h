@@ -66,16 +66,14 @@
         this->count.push_back(count);
         T **inputbuf_d;
 	CommBench::allocate(inputbuf_d, inputbuf.size());
+        CommBench::memcpyH2D(inputbuf_d, inputbuf.data(), inputbuf.size());
 #ifdef PORT_CUDA
-        cudaMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), cudaMemcpyHostToDevice);
         stream.push_back(new cudaStream_t);
         cudaStreamCreate(stream[numcomp]);
 #elif defined PORT_HIP
-        hipMemcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*), hipMemcpyHostToDevice);
         stream.push_back(new hipStream_t);
         hipStreamCreate(stream[numcomp]);
 #elif defined PORT_SYCL
-	CommBench::q.memcpy(inputbuf_d, inputbuf.data(), inputbuf.size() * sizeof(T*)).wait();
         queue.push_back(new sycl::queue(sycl::gpu_selector_v));
 #endif
         this->inputbuf_d.push_back(inputbuf_d);
