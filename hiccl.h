@@ -21,7 +21,7 @@
 // For AMD: #define PORT_HIP
 // For SYCL: #define PORT_SYCL
 
-#include "CommBench/comm.h"
+#include "CommBench/commbench.h"
 
 #include <list>
 
