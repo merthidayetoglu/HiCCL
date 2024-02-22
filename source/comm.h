@@ -57,6 +57,9 @@
     void set_numstripe(int numstripe) {
       this->numstripe = numstripe;
     }
+    void set_ringnodes(int ringnodes) {
+      this->ringnodes = ringnodes;
+    }
     // SET ENDPOINTS
     void set_endpoints(T *sendbuf, size_t sendcount, T *recvbuf, size_t recvcount) {
       this->sendbuf = sendbuf;
@@ -165,6 +168,7 @@
       groupsize[numlevel - 1] = hierarchy[numlevel - 1];
       for(int i = numlevel - 2; i > -1; i--)
         groupsize[i] = groupsize[i + 1] * hierarchy[i];
+      groupsize[0] = numproc / ringnodes;
       MPI_Barrier(comm_mpi);
       double init_time = MPI_Wtime();
       // init.h
