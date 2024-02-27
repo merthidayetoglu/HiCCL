@@ -38,51 +38,11 @@
             // STRIPE BROADCAST PRIMITIVES
             std::vector<REDUCE<T>> split_list;
             stripe(numstripe, bcast_batch[batch], split_list);
-            // ExaComm::stripe_ring(comm_mpi, numstripe, bcast_batch[batch], split_list);
-            // IMPLEMENT WITH IPC
-            // Coll<T> *stripe = new Coll<T>(CommBench::MPI);
-            //for(auto &p2p : split_list)
-            //  stripe->add(p2p.sendbuf, p2p.sendoffset, p2p.recvbuf, p2p.recvoffset, p2p.count, p2p.sendids[0], p2p.recvid);
-            // coll_batch[batch].push_back(stripe);
-            // STRIPING THROUGH CPU
-            /*Coll<T> *stripe_d2h = new Coll<T>(CommBench::STAGE);
-            Coll<T> *stripe_h2h = new Coll<T>(CommBench::MPI);
-            Coll<T> *stripe_h2d = new Coll<T>(CommBench::STAGE);
-            for(auto &p2p : split_list) {
-              T *sendbuf_h;
-              T *recvbuf_h;
-              if(myid == p2p.sendids[0])
-                allocateHost(sendbuf_h, p2p.count);
-              if(myid == p2p.recvid)
-                allocateHost(recvbuf_h, p2p.count);
-              stripe_d2h->add(p2p.sendbuf, p2p.sendoffset, sendbuf_h, 0, p2p.count, p2p.sendids[0], -1);
-              stripe_h2h->add(sendbuf_h, 0, recvbuf_h, 0, p2p.count, p2p.sendids[0], p2p.recvid);
-              stripe_h2d->add(recvbuf_h, 0, p2p.recvbuf, p2p.recvoffset, p2p.count, -1, p2p.recvid);
-            }
-            coll_batch[batch].push_back(stripe_d2h);
-            coll_batch[batch].push_back(stripe_h2h);
-            coll_batch[batch].push_back(stripe_h2d);*/
-            // CPU STAGING ACROSS NODES
-            /*{
-              Coll<T> *stage_d2h = new Coll<T>(CommBench::STAGE);
-              std::vector<BROADCAST<T>> temp_batch = bcast_batch[batch];
-              bcast_batch[batch].clear();
-              for(auto &bcast : temp_batch) {
-                T *stagebuf;
-                allocateHost(stagebuf, bcast.count);
-                stage_d2h->add(bcast.sendbuf, bcast.sendoffset, stagebuf, 0, bcast.count, bcast.sendid, -1);
-                bcast_batch[batch].push_back(BROADCAST<T>(stagebuf, 0, bcast.recvbuf, bcast.recvoffset, bcast.count, bcast.sendid, bcast.recvids));
-              }
-              coll_batch[batch].push_back(stage_d2h);
-            }*/
-
-            // Coll<T> *stage_h2d = new Coll<T>(CommBench::STAGE);
 
             // APPLY REDUCE TREE TO ROOTS FOR STRIPING
             std::vector<T*> recvbuff; // for memory recycling
-            reduce_tree(numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
-            // std::vector<BROADCAST<T>> bcast_temp; // for accumulating intra-node communications for tree (internally)
-            // ExaComm::bcast_ring(comm_mpi, 1, lib[numlevel-1], split_list, bcast_temp, coll_batch[batch], &allocate);
+            // reduce_tree(numlevel, groupsize_temp.data(), lib, split_list, numlevel - 1, coll_batch[batch], recvbuff, 0);
+            reduce_tree(1, groupsize_temp.data(), &lib[numlevel-1], split_list, 0, coll_batch[batch], recvbuff, 0);
 
             // APPLY RING TO BRANCHES ACROSS NODES
             std::vector<BROADCAST<T>> bcast_intra; // for accumulating intra-node communications for tree (internally)
