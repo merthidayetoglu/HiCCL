@@ -13,17 +13,15 @@
  * limitations under the License.
  */
 
-#include <mpi.h>
-
 // #define PORT_SYCL
-// #define PORT_HIP
-#define PORT_CUDA
+#define PORT_HIP
+// #define PORT_CUDA
 #include "../hiccl.h"
 
 #define ROOT 0
 
 // USER DEFINED TYPE
-#define Type float
+#define Type size_t
 /*struct Type
 {
   // int tag;
@@ -55,7 +53,7 @@ int main(int argc, char *argv[])
 
 
   // PRINT NUMBER OF PROCESSES AND THREADS
-  if(myid == ROOT)
+  if(myid == CommBench::printid)
   {
     printf("\n");
     printf("Number of processes: %d\n", numproc);
@@ -155,23 +153,24 @@ int main(int argc, char *argv[])
           coll.add_bcast(recvbuf_d, sender * count, recvbuf_d, sender * count, count, sender, HiCCL::others);
         break;
       default:
-        if(myid == ROOT)
+        if(myid == CommBench::printid)
           printf("invalid collective option\n");
     }
 
     // INITIALIZE
-    // coll.set_hierarchy(std::vector<int> {CommBench::numproc}, std::vector<CommBench::library> {CommBench::XCCL});
-    coll.set_hierarchy(std::vector<int> {4, 4}, std::vector<CommBench::library> {CommBench::XCCL, CommBench::IPC});
-    // coll.set_hierarchy(std::vector<int> {2, 2, 4}, std::vector<CommBench::library> {CommBench::XCCL, CommBench::XCCL, CommBench::IPC_get});
+    coll.set_hierarchy(std::vector<int> {2, 2, 2, 2, 2},
+                       std::vector<CommBench::library> {CommBench::MPI, CommBench::XCCL, CommBench::XCCL, CommBench::IPC_get, CommBench::IPC});
     coll.set_numstripe(numstripe);
     coll.set_ringnodes(ringnodes);
     coll.set_pipedepth(pipedepth);
-    coll.init();
 
-    CommBench::report_memory();
+    CommBench::printid = -1;
+    coll.init();
+    CommBench::printid = 0;
 
     // coll.measure(warmup, numiter, count * numproc / pipedepth);
 
+    CommBench::report_memory();
     HiCCL::measure<Type>(warmup, numiter, count * numproc, coll);
     HiCCL::validate(sendbuf_d, recvbuf_d, count, pattern, ROOT, coll);
   }

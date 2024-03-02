@@ -27,8 +27,8 @@
 
 namespace HiCCL {
 
+  static int printid = 0;
   static const MPI_Comm &comm_mpi = CommBench::comm_mpi;
-  static int &printid = CommBench::printid;
   static const int &numproc = CommBench::numproc;
   static const int &myid = CommBench::myid;
 

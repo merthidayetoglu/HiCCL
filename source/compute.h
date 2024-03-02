@@ -42,6 +42,8 @@
     std::vector<sycl::queue*> queue;
 #endif
 
+    int printid = CommBench::printid;
+
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
       if(printid > -1) {
         if(myid == compid) {
@@ -68,10 +70,10 @@
 	CommBench::allocate(inputbuf_d, inputbuf.size());
         CommBench::memcpyH2D(inputbuf_d, inputbuf.data(), inputbuf.size());
 #ifdef PORT_CUDA
-        stream.push_back(new cudaStream_t);
+        stream.push_back(new cudaStream_t());
         cudaStreamCreate(stream[numcomp]);
 #elif defined PORT_HIP
-        stream.push_back(new hipStream_t);
+        stream.push_back(new hipStream_t());
         hipStreamCreate(stream[numcomp]);
 #elif defined PORT_SYCL
         queue.push_back(new sycl::queue(sycl::gpu_selector_v));
