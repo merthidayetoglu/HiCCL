@@ -34,7 +34,9 @@
           MPI_Recv(&recvbuf_recvid[recv], sizeof(T*), MPI_BYTE, recvids[recv], 0, comm_mpi, MPI_STATUS_IGNORE);
           MPI_Recv(&recvoffset_recvid[recv], sizeof(size_t), MPI_BYTE, recvids[recv], 0, comm_mpi, MPI_STATUS_IGNORE);
         }
-        printf("BROADCAST report: count %lu\n", count);
+        printf("BROADCAST report: count %lu (", count);
+        CommBench::print_data(count * sizeof(T));
+        printf(")\n");
         char text[1000];
         int n = sprintf(text, "sendid %d sendbuf %p sendoffset %lu -> ", sendid, sendbuf_sendid, sendoffset_sendid);
         printf("%s", text);

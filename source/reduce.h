@@ -33,7 +33,9 @@
           MPI_Recv(sendbuf_sendid.data() + send, sizeof(T*), MPI_BYTE, sendids[send], 0, comm_mpi, MPI_STATUS_IGNORE);
           MPI_Recv(sendoffset_sendid.data() + send, sizeof(size_t), MPI_BYTE, sendids[send], 0, comm_mpi, MPI_STATUS_IGNORE);
         }
-        printf("REDUCE report: count %lu\n", count);
+        printf("REDUCE report: count %lu (", count);
+        CommBench::print_data(count * sizeof(T));
+        printf(")\n");
         char text[1000];
         int n = sprintf(text, "recvid %d recvbuf %p recvoffset %lu <- ", recvid, recvbuf_recvid, recvoffset_recvid);
         printf("%s", text);
@@ -143,7 +145,8 @@
                     //if(printid == printid)
                     //  printf("recvid %d reuses recv memory\n", recvid);
                   }
-                  else {
+                  else
+                  {
                     if(myid == recvid) {
                       CommBench::allocate(recvbuf, reduce.count);
                       recvbuf_ptr.push_back(recvbuf);
