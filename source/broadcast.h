@@ -1,7 +1,6 @@
 
   template <typename T>
   struct BROADCAST {
-    public:
     T* sendbuf;
     size_t sendoffset;
     T* recvbuf;

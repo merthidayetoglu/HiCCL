@@ -119,10 +119,10 @@
 
     Comm() {
       // DEFAULT PARAMETERS
-      if(myid == printid) {
+      /*if(myid == printid) {
         printf("DEFAULT PARAMETERS:\n");
         print_parameters();
-      }
+      }*/
       // DEFAULT EPOCH
       add_fence();
     }
