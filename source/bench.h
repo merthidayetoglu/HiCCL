@@ -108,6 +108,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
   CommBench::q.wait();
 #endif
 
+  MPI_Barrier(comm_mpi);
+  double time = MPI_Wtime();
   unsigned long errorcount = 0;
   bool pass = true;
   switch(patternid) {
@@ -199,6 +201,8 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
     else
       printf("FAILED!!!\n");
   }
+  if(myid == printid)
+    printf("verification time: %e seconds\n", MPI_Wtime() - time);
   if(!pass) {
     std::vector<unsigned long> errorcounts(numproc);
     MPI_Allgather(&errorcount, 1, MPI_UNSIGNED_LONG, errorcounts.data(), 1, MPI_UNSIGNED_LONG, comm_mpi);
