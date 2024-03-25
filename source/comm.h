@@ -211,6 +211,21 @@
       CommBench::memcpyD2D(recvbuf, this->recvbuf, recvcount);
     }
 
+    static void* run_async(void* arg) {
+      CommBench::setup_gpu();
+      Comm<T> *test = (Comm<T>*) arg;
+      test->run();
+      pthread_exit(NULL);
+    }
+
+    pthread_t thread;
+    void start() {
+      pthread_create(&thread, NULL, Comm<T>::run_async, this);
+    }
+    void wait() {
+      pthread_join(thread, NULL);
+    }
+
     void measure(int warmup, int numiter, size_t count) {
       if(myid == printid) {
         printf("command_batch size %zu\n", command_batch.size());

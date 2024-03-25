@@ -24,6 +24,7 @@
 #include "CommBench/commbench.h"
 
 #include <list>
+#include <pthread.h>
 
 namespace HiCCL {
 

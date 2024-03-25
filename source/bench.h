@@ -95,7 +95,10 @@ void validate(T *sendbuf_d, T *recvbuf_d, size_t count, int patternid, int root,
 #endif
   MPI_Barrier(comm_mpi);
 
-  comm.run();
+  // comm.run();
+  // comm.run(sendbuf_d, recvbuf_d);
+  comm.start();
+  comm.wait();
 
 #ifdef PORT_CUDA
   cudaMemcpyAsync(recvbuf, recvbuf_d, count * numproc * sizeof(T), cudaMemcpyDeviceToHost, stream);
