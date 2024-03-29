@@ -12,6 +12,7 @@
     void report() {
       if(printid < 0)
         return;
+      MPI_Barrier(comm_mpi);
       if(myid == sendid) {
         MPI_Send(&sendbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
         MPI_Send(&sendoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);

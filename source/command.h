@@ -45,15 +45,21 @@
 
     // REPORT MEMORY
     {
-      double buffsize_tot = buffsize * sizeof(T) / 1.e9;
-      double recycle_tot = recycle * sizeof(T) / 1.e9;
-      double reuse_tot = reuse * sizeof(T) / 1.e9;
-      MPI_Allreduce(MPI_IN_PLACE, &buffsize_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
-      MPI_Allreduce(MPI_IN_PLACE, &recycle_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
-      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_DOUBLE, MPI_SUM, comm_mpi);
+      long buffsize_tot = buffsize * sizeof(T);
+      long recycle_tot = recycle * sizeof(T);
+      long reuse_tot = reuse * sizeof(T);
+      MPI_Allreduce(MPI_IN_PLACE, &buffsize_tot, 1, MPI_LONG, MPI_SUM, comm_mpi);
+      MPI_Allreduce(MPI_IN_PLACE, &recycle_tot, 1, MPI_LONG, MPI_SUM, comm_mpi);
+      MPI_Allreduce(MPI_IN_PLACE, &reuse_tot, 1, MPI_LONG, MPI_SUM, comm_mpi);
       if(myid == printid) {
         printf("********************************************\n\n");
-        printf("total buffsize: %.2f GB, reuse: %.2f GB, recycle: %.2f GB\n", buffsize_tot, reuse_tot, recycle_tot);
+        printf("total buffsize: ");
+        CommBench::print_data(buffsize_tot);
+        printf(" reuse: ");
+        CommBench::print_data(reuse_tot);
+        printf(" recycle: ");
+        CommBench::print_data(recycle_tot);
+        printf("\n");
       }
       std::vector<size_t> buffsize_all(numproc);
       std::vector<size_t> recycle_all(numproc);

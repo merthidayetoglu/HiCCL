@@ -12,6 +12,7 @@
     void report() {
       if(printid < 0)
         return;
+      MPI_Barrier(comm_mpi);
       if(myid == recvid) {
         MPI_Send(&recvbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
         MPI_Send(&recvoffset, sizeof(size_t), MPI_BYTE, printid, 0, comm_mpi);
@@ -85,11 +86,11 @@
 
     int numgroup = numproc / groupsize[level];
 
-    //if(printid == printid) {
+    // if(printid == printid) {
     //  printf("level %d groupsize %d numgroup %d\n", level, groupsize[level], numgroup);
-    //}
+    // }
     // for(auto &reduce : reducelist)
-    //  reduce.report(printid);
+    //   reduce.report();
 
     {
       for(auto reduce : reducelist) {
@@ -141,8 +142,8 @@
                       recycle += reduce.count;
                       numrecvbuf++;
                     }
-                    //if(printid == printid)
-                    //  printf("recvid %d reuses recv memory\n", recvid);
+                    // if(myid == printid)
+                    //   printf("recvid %d reuses recv memory\n", recvid);
                   }
                   else
                   {
@@ -152,15 +153,17 @@
                       buffsize += reduce.count;
                       numrecvbuf++;
                     }
-                    //if(printid == printid)
-                    //   printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d recv malloc %zu\n", recvid, reduce.count * sizeof(T));
+                    if(myid == printid)
+                       printf("-"); // this is necessary for Frontier
+                       //printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d recv malloc %zu\n", recvid, reduce.count * sizeof(T));
                   }
                   /// ADD COMMUNICATION
                   coll_temp->add(reduce.sendbuf, reduce.sendoffset, recvbuf, 0, reduce.count, sendid, recvid);
                   inputbuf.push_back(recvbuf);
                 }
-                else
+                else {
                   inputbuf.push_back(reduce.sendbuf + reduce.sendoffset);
+                }
               }
               // ADD COMPUTATION
               coll_temp->add(inputbuf, outputbuf + outputoffset, reduce.count, recvid);

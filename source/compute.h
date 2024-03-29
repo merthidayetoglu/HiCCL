@@ -46,6 +46,7 @@
 
     void add(std::vector<T*> &inputbuf, T *outputbuf, size_t count, int compid) {
       if(printid > -1) {
+        MPI_Barrier(comm_mpi);
         if(myid == compid) {
           MPI_Send(&outputbuf, sizeof(T*), MPI_BYTE, printid, 0, comm_mpi);
           for(int in = 0; in < inputbuf.size(); in++)
