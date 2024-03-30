@@ -32,6 +32,7 @@
 int main(int argc, char *argv[])
 {
   // INITIALIZE
+  CommBench::init();
   int myid = CommBench::myid;
   int numproc = CommBench::numproc;
   // MPI_Init(&argc, &argv);
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
   {
     HiCCL::Comm<Type> coll;
 
+    HiCCL::printid = -1;    
     // PATTERN DESRIPTION
     switch (pattern) {
 	    case HiCCL::gather :
@@ -156,10 +158,15 @@ int main(int argc, char *argv[])
         if(myid == CommBench::printid)
           printf("invalid collective option\n");
     }
+    HiCCL::printid = 0;    
 
     // INITIALIZE
-    coll.set_hierarchy(std::vector<int> {2, 2, 2, 2, 2},
-                       std::vector<CommBench::library> {CommBench::MPI, CommBench::XCCL, CommBench::XCCL, CommBench::IPC_get, CommBench::IPC});
+     coll.set_hierarchy(std::vector<int> {4, 4, 2},
+                        std::vector<CommBench::library> {CommBench::MPI, CommBench::IPC, CommBench::IPC});
+    //coll.set_hierarchy(std::vector<int> {2, 2, 4, 2},
+     //                  std::vector<CommBench::library> {CommBench::MPI, CommBench::MPI, CommBench::IPC, CommBench::IPC});
+    // coll.set_hierarchy(std::vector<int> {32, 8},
+    //                    std::vector<CommBench::library> {CommBench::MPI, CommBench::IPC});
     coll.set_numstripe(numstripe);
     coll.set_ringnodes(ringnodes);
     coll.set_pipedepth(pipedepth);
@@ -168,11 +175,16 @@ int main(int argc, char *argv[])
     coll.init();
     CommBench::printid = 0;
 
-    // coll.measure(warmup, numiter, count * numproc / pipedepth);
+    coll.measure(warmup, numiter, count * numproc / pipedepth);
 
     CommBench::report_memory();
     HiCCL::measure<Type>(warmup, numiter, count * numproc, coll);
     HiCCL::validate(sendbuf_d, recvbuf_d, count, pattern, ROOT, coll);
+  }
+  if(myid == CommBench::printid) {
+    printf("approx. message length: ");
+    CommBench::print_data((((double)count / numstripe) / pipedepth) * sizeof(Type));
+    printf("\n");
   }
 
 // DEALLOCATE

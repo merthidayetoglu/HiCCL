@@ -153,7 +153,7 @@
                       buffsize += reduce.count;
                       numrecvbuf++;
                     }
-                    if(myid == printid)
+                    if(myid == numproc)
                        printf("-"); // this is necessary for Frontier
                        //printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proc %d recv malloc %zu\n", recvid, reduce.count * sizeof(T));
                   }
