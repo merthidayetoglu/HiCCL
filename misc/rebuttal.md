@@ -24,7 +24,7 @@ HiCCL’s API (Listing 2) is intended for library developers. Communication poli
 
 **Rev1**
 
-1) We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
+1)--2) We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
 3) Fig.8 compares the algorithmic throughput of collective functions in isolation.
 4) The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
 
