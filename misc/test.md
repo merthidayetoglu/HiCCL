@@ -27,7 +27,7 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **Rev2**
 
-- **Parameter selection:** The communication policies must be informed by the user through HiCCL’s API (Listing 2). The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). In our experience, one can determine the optimal configuration in only three guesses per system. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
+- **Parameter selection:** The communication policies must be informed by the user through HiCCL’s API. The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in TableV-bold. In our experience, one can determine the optimal configuration in only three guesses per system. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
 
 - **Alternative topologies:** Most recent GPU systems have hierarchical networks, therefore we designed hierarchical optimizations. A less common topology is torus (e.g.,Tofu), which would require different optimizations. The machine-agnostic collective composition (with three primitives) can be applied directly to any topology. However, the factorization of the primitives will be different, and must be specialized for the given network topology.
 
