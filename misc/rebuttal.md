@@ -12,7 +12,7 @@ The fence operation is not a barrier. Given two collective operations C1 and C2,
 
 **Application Benchmark (Rev.3,4,5)**
 
-We integrated our library into PyTorch-DDP and tested it with GPT-2 training on four nodes of Perlmutter. This workload uses various buffer sizes (12 MB, 25 MB, 50 MB). Switching the DDP backend requires changing the ‘NCCL’ keyword with ‘HiCCL’ keyword in the training script. Our results show on-par performance with NCCL’s (both in terms of per-iteration time and convergence rate).
+We integrated our library into PyTorch-DDP and tested it with GPT-2 training on four nodes of Perlmutter. This workload uses various buffer sizes (12 MB, 25 MB, 50 MB). Switching the DDP backend requires changing the ‘NCCL’ keyword with ‘HiCCL’ in the training script. Our results show on-par performance with NCCL’s (both in terms of per-iteration time and convergence rate).
 
 **Throughput-Oriented Evaluation (Rev.1,2,3)**
 
@@ -26,17 +26,21 @@ HiCCL’s API (Listing 2) is intended for library developers. Communication poli
 
 1.-2. We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
 
-3) Fig.8 compares the algorithmic throughput of collective functions in isolation.
+3\. Fig.8 compares the algorithmic throughput of collective functions in isolation.
 
-4) The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
+4\. The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
 
 ***Rev2***
 
-All GPU systems that we know today have hierarchical networks.
+- All GPU systems that we know of today have hierarchical networks.
 
-Background explains achievable bandwidth of 75% due to load imbalance across NICs, which manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
+- Background explains achievable bandwidth of 75% due to load imbalance across NICs, which manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
 
 ***Rev3***
+
+**GPU-aware MPI** (**D8**,**D16**,**W10**): The core algorithms in GPU-aware MPI implementations are originally developed for CPUs. Current implementations (OpenMPI/MPICH) move the data to CPU, run an original algorithm as is, and then move the results back to GPU. Therefore they do not take advantage of the direct links across GPUs, and it is hard to compare the ideas in HiCCL. We confirmed our discussion with MPICH developers.
+
+**Optimality** (**D7**): Fig.8 compares ring and tree for broadcast and reduce, showing that saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is sub-optimal (Sec.III-Bpar.3,Cpar.2). Therefore we chose reduce-scatter followed by all-gather (TabIe2row15), which is communication optimal.
 
 **W1**,**W4**. Refer-to-**C**
 **W2**,**W3**,**W5**,**W6**,**R1**,**D12**,**D15**. Refer-to-**A**
@@ -46,10 +50,6 @@ Background explains achievable bandwidth of 75% due to load imbalance across NIC
 **R2.** Refer-to-**A**&**W9**.
 
 **R3**. **a)** Refer-to-**A**. **b)** Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
-
-**D7**. Fig.8 compares ring and tree for broadcast and reduce, showing that saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is sub-optimal (Sec.III-Bpar.3,Cpar.2). Therefore we chose reduce-scatter followed by all-gather (TabIe2row15), which is communication optimal.
-
-**D8**,**D16**,**W10**. The core algorithms in GPU-aware MPI implementations are originally developed for CPUs. Current implementations (OpenMPI/MPICH) move the data to CPU, run an original algorithm as is, and then move the results back to GPU. Therefore they do not take advantage of the direct links across GPUs, and it is hard to compare the ideas in HiCCL. We confirmed our discussion with MPICH developers.
 
 **D18**. [7] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
 
@@ -68,5 +68,7 @@ We will address all detailed comments in the paper, but due to space constraints
 ***Rev5***
 
 **HiCCL integration**: HiCCL’s typical use is replacing throughput-critical functions manually with the original API(Listing2). Alternatively, a drop-in replacement can be achieved with compiler macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API. We developed Python bindings as a proof of concept.
+
+We used DDP's 3rd party C++ backend interface to HiCCL integration into PyTorch.
 
 We will address all minor typographical errors and corrections to figures and text in the final version.
