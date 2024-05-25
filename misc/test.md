@@ -33,8 +33,11 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 **Rev3**
 
 **W3,W5,R1,D12,D15.** Refer-to-**A**
-W1. Refer-to-C
-W2. Fence divides the collective into two steps. Each process wait for completion of the first step before starting the second, hence guaranteeing correctness. Refer-to-A.
+
+**W1.** Refer-to-**C**
+
+**W2.** Fence divides the collective into two steps. Each process wait for completion of the first step before starting the second, hence guaranteeing correctness. Refer-to-**A**.
+
 W4. Yes, the user can tune the parameters Listing2(13–17) for tuning for latency or bandwidth. Refer-to-C.
 W6. We exhaustively tested correctness with various 1) compositions, 2) parameters, 3) systems. We describe the verification tests in AD/AE appendix. Refer-to-A.
 W7. Refer-to-B.
