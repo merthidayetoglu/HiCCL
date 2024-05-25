@@ -1,6 +1,7 @@
 We first address the most extensive criticisms of the paper.  We address these issues first and then the other points raised.
 
 **Correctness (Rev.3)**
+
 Our method is built on two-sided point-to-point primitives of existing communication libraries - we stress that we are not implementing these lowest-level communication operations ourselves. Thus, issues such as whether receive buffers are filled before the client reads the data do not exist, as we rely on the correctness of these existing implementations.
 
 The correctness of our collective operations depends only on enforcing any needed ordering between multiple point-to-point operations, such as moving data in multiple hops in sequence through the communication hierarchy or performing reductions.  Such operations are dependent on earlier operations, hence the term “dependencies”, which is a standard term to describe such relationships.
@@ -10,13 +11,15 @@ We agree happens-before is an important concept, but we do not believe it is app
 The fence operation is not a barrier. Given two collective operations C1 and C2, the sequence C1; fence; C2 expresses that the components of C2 are pointwise dependent on the components of C1 — i.e., the ith component of C2 must wait until the ith component of C1 has finished (see Figure 4), but not that every component of C2 must wait until every component of C1 has finished. We are certainly open to a better name, and we understand that the explanation can be improved.
 
 **Application Benchmark (Rev.3,4,5)**
+
 We have already integrated our library into PyTorch-DDP and tested it with GPT-2 training on four nodes of Perlmutter. This workload uses a diverse set of collectives with various buffer sizes (12 MB, 25 MB, 50 MB). Switching the DDP backend library is as easy as changing the ‘NCCL’ keyword with ‘HiCCL’ keyword in the training script. Our results show on-par performance (both in terms of per-iteration time and convergence rate).
 
 **Throughput-Oriented Evaluation (Rev.1,2,3)**
+
 In our preliminary studies, we found that MPI collectives with small buffer sizes are sufficiently performant (even more than NCCL/RCCL) in terms of latency. For latency-critical applications, one should simply use MPI functions directly. On the other hand, large message sizes are critical for utilizing accelerators and the network across them. Our study suggests that MPI libraries are not fully optimized for throughput. Therefore we focused on optimizing collective algorithms for throughput. We made this discussion clear in the first three paragraphs of Section 1. We provide latency/bw tradeoff in Fig.9. Paper focuses on >MB regime.
 
-
 **Rev1**
+
 1) The hierarchical tree structure is automatically built from the user input, specifically through the vector in Listing 2, Line 13. This vector corresponds to the branching factors in each level. Listing 2 is intended for library developers utilizing HiCCL. An informed user can utilize HiCCL directly yet setting the input parameters require expertise.
 2) We apologize for not matching the hierarchy in Listing 2 with one of those in Figure 5. Listing 2 is for Aurora, which has six GPUs and each GPU has two dies. Therefore there are 12 endpoints per node in total. When there are two nodes (numproc=24) the factorization in Listing 2 will be the following {2,6,2} (currently not displayed). For clarity, we will replace Figure 5(a) with a display of the parameters in Listing 2.
 3) Figure 8 shows the algorithmic throughput of collective functions in isolation.
