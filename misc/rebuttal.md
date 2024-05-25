@@ -65,8 +65,8 @@ We will address all detailed comments in the paper, but due to space constraints
 
 **Scaling**: We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. In allgather (Fig.2), each GPU is responsible to reduce partial data. With thousands of GPUs, the work per GPU becomes so small (<MB) that the network and GPU kernel launch latency becomes significant. It is future research to find novel compositions to maintain large message sizes at scale.
 
-**Rev5**
+***Rev5***
 
-HiCCL integration: HiCCL’s typical use is replacing throughput-critical functions manually with the original API(Listing2). Alternatively, a drop-in replacement can be achieved with compiler macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API. We developed Python bindings as a proof of concept.
+**HiCCL integration**: HiCCL’s typical use is replacing throughput-critical functions manually with the original API(Listing2). Alternatively, a drop-in replacement can be achieved with compiler macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API. We developed Python bindings as a proof of concept.
 
 We will address all minor typographical errors and corrections to figures and text in the final version.
