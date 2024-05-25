@@ -71,7 +71,7 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **D16.** Refer-to-**D8**. The core algorithms in GPU-aware MPI implementations are CPU based. It is hard to compare the ideas in HiCCL with GPU-aware MPI libraries.
 
-**D17.** Refer-to-**W9*8.
+**D17.** Refer-to-**W9**.
 
 **D18.** [7] is criticized for costly code synthesis for collective communications, not using SMT in general. We will clarify in the final version.
 
