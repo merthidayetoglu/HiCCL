@@ -25,15 +25,12 @@ HiCCL’s API (Listing 2) is intended for library developers. Communication poli
 ***Rev1***
 
 1.-2. We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
-
 3\. Fig.8 compares the algorithmic throughput of collective functions in isolation.
-
 4\. The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
 
 ***Rev2***
 
 - All GPU systems that we know of today have hierarchical networks.
-
 - Background explains achievable bandwidth of 75% due to load imbalance across NICs, which manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
 
 ***Rev3***
@@ -51,7 +48,7 @@ HiCCL’s API (Listing 2) is intended for library developers. Communication poli
 
 **R3**. **a)** Refer-to-**A**. **b)** Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
 
-**D18**. [7] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
+**D18**. [4,22,27] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
 
 We will address all detailed comments in the paper, but due to space constraints cannot answer exhaustively.
 
