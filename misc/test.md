@@ -25,12 +25,14 @@ In our preliminary studies, we found that MPI collectives with small buffer size
 3) Figure 8 shows the algorithmic throughput of collective functions in isolation.
 The geometric mean of HiCCL’s speedup over MPI is calculated based on throughput on four systems and eight collectives that are shown in Figure 8.
 
-Rev2
-The communication policies must be informed by the user through HiCCL’s API (e.g., Listing 2). The intra-node network may consist of multiple levels, e.g., the interconnect across the accelerator dies in a single device and the one across devices differ in Frontier and Aurora. The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). Moreover, the most performant library implementation in each level can be chosen (among the available) by simply changing the parameters. With a few educated guesses, the optimal parameters will most likely be found. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
-The network architecture with multi-accelerator nodes has converged to hierarchical structures. Specifically for targeting the most recent GPU systems, we designed specialized optimizations for hierarchical systems. Another typical topology is torus (e.g., Tofu), which requires different collective optimizations. The compositional design of HiCCL (with three primitives) can be applied directly to other topologies because of its machine-agnostic nature. However, the factorization of those primitives will be different, and must be specialized for the given network topology.
+**Rev2**
 
-Rev3
-W3,W5,R1,D12,D15. Refer-to-A
+1) The communication policies must be informed by the user through HiCCL’s API (e.g., Listing 2). The intra-node network may consist of multiple levels, e.g., the interconnect across the accelerator dies in a single device and the one across devices differ in Frontier and Aurora. The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). Moreover, the most performant library implementation in each level can be chosen (among the available) by simply changing the parameters. With a few educated guesses, the optimal parameters will most likely be found. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
+2) The network architecture with multi-accelerator nodes has converged to hierarchical structures. Specifically for targeting the most recent GPU systems, we designed specialized optimizations for hierarchical systems. Another typical topology is torus (e.g., Tofu), which requires different collective optimizations. The compositional design of HiCCL (with three primitives) can be applied directly to other topologies because of its machine-agnostic nature. However, the factorization of those primitives will be different, and must be specialized for the given network topology.
+
+**Rev3**
+
+**W3,W5,R1,D12,D15.** Refer-to-**A**
 W1. Refer-to-C
 W2. Fence divides the collective into two steps. Each process wait for completion of the first step before starting the second, hence guaranteeing correctness. Refer-to-A.
 W4. Yes, the user can tune the parameters Listing2(13–17) for tuning for latency or bandwidth. Refer-to-C.
