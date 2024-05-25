@@ -14,34 +14,38 @@ The fence operation is not a barrier. Given two collective operations C1 and C2,
 
 We integrated our library into PyTorch-DDP and tested it with GPT-2 training on four nodes of Perlmutter. This workload uses various buffer sizes (12 MB, 25 MB, 50 MB). Switching the DDP backend requires changing the ‘NCCL’ keyword with ‘HiCCL’ keyword in the training script. Our results show on-par performance with NCCL’s (both in terms of per-iteration time and convergence rate).
 
-Throughput-Oriented Evaluation (Rev.1,2,3)
+**Throughput-Oriented Evaluation (Rev.1,2,3)**
+
 Our preliminary studies have shown that one should simply use MPI for latency-critical applications. However, large message sizes are critical for utilizing accelerators, which is our focus; see the first three paragraphs of Section 1. 
 
-Parameter Selection (Rev.1,2,4)
+**Parameter Selection (Rev.1,2,4)**
+
 HiCCL’s API (Listing 2) is intended for library developers. Communication policies are informed by the developer. For example, the user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). The hierarchical tree structure is automatically built from the user input as explained in Sec.IV.
 
-Rev1
+**Rev1**
+
 1) 2) We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
 3) Fig.8 compares the algorithmic throughput of collective functions in isolation.
 4) The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
 
-Rev2
+**Rev2**
 
 All GPU systems that we know today have hierarchical networks.
 
 Background explains achievable bandwidth of 75% due to load imbalance across NICs, which manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
 
-Rev3
+**Rev3**
 
-W1,W4. Refer-to-C
-W2,W3,W5,W6,R1,D12,D15. Refer-to-A
-W7,W11. Refer-to-B.
-W9,D17. To our knowledge, we have included the work that directly relates to our contribution. We will include happens-before semantics in related work and cite the work pointed out by the reviewer. We are open to adding additional work and updating terminology based on reviewers’ suggestions.
+**W1**,**W4**. Refer-to-**C**
+**W2**,**W3**,**W5**,**W6**,**R1**,**D12**,**D15**. Refer-to-**A**
+**W7**,**W11**. Refer-to-**B**.
+**W9**,**D17**. To our knowledge, we have included the work that directly relates to our contribution. We will include happens-before semantics in related work and cite the work pointed out by the reviewer. We are open to adding additional work and updating terminology based on reviewers’ suggestions.
 
-R2. Refer-to-A&W9.
-R3. a) Refer-to-A b) Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
+**R2.** Refer-to-**A**&**W9**.
 
-D7. Fig.8 compares ring and tree for broadcast and reduce, showing that saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is sub-optimal (Sec.III-Bpar.3,Cpar.2). Therefore we chose reduce-scatter followed by all-gather (TabIe2row15), which is communication optimal.
+**R3**. **a)** Refer-to-**A** **b)** Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
+
+**D7**. Fig.8 compares ring and tree for broadcast and reduce, showing that saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is sub-optimal (Sec.III-Bpar.3,Cpar.2). Therefore we chose reduce-scatter followed by all-gather (TabIe2row15), which is communication optimal.
 D8,D16,W10. The core algorithms in GPU-aware MPI implementations are originally developed for CPUs. Current implementations (OpenMPI/MPICH) move the data to CPU, run an original algorithm as is, and then move the results back to GPU. Therefore they do not take advantage of the direct links across GPUs, and it is hard to compare the ideas in HiCCL. We confirmed our discussion with MPICH developers.
 D18. [7] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
 
