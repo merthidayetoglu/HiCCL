@@ -38,37 +38,57 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **W2.** Fence divides the collective into two steps. Each process wait for completion of the first step before starting the second, hence guaranteeing correctness. Refer-to-**A**.
 
-W4. Yes, the user can tune the parameters Listing2(13–17) for tuning for latency or bandwidth. Refer-to-C.
-W6. We exhaustively tested correctness with various 1) compositions, 2) parameters, 3) systems. We describe the verification tests in AD/AE appendix. Refer-to-A.
-W7. Refer-to-B.
-W8. We will review our terminology usage in the paper and make updates accordingly. We welcome any further feedback from the reviewer in this regard. Please consult our other answers when considering potential alignment with existing terms.
-W9. To our knowledge, we have included all the work that directly relates to our contribution in Section VII. We will include happens-before semantics in related work and cite the work pointed out by the reviewer. We are open to adding additional work based on reviewers’ suggestions.
-W10. MPI on our test systems are vendor-provided and are optimized/tested extensively for acceptance tests. We worked with facility staff and MPICH developers and set necessary tuning flags to maximize throughput. Refer-to-D8.
-W11. Refer-to-B.
+**W4.** Yes, the user can tune the parameters Listing2(13–17) for tuning for latency or bandwidth. Refer-to-**C**.
 
-R2. Refer-to-A&W9.
-R3. a) Refer-to-A b) In practice, the collective performance will be affected by additional communication (if any) and so the theoretical bounds in Table III.
+**W6.** We exhaustively tested correctness with various 1) compositions, 2) parameters, 3) systems. We describe the verification tests in AD/AE appendix. Refer-to-**A**.
 
-D1. The endpoints of primitives (sendbuf/recvbuf) cannot overlap.
-D6. We chose the three primitives for their simplicity and expressivity. Alternative to multicast and reduction would allGatherv and reduceScatterv. However, the alternative has a more complex interface than the original.
-D7. We compare ring and tree for broadcast and reduce in Figure 8 to show the case where saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is not communication optimal (SIII-Bpar.3,SIV-Cpar.2). On the other hand, a reduce followed by a broadcast (TableIIrow14) is load imbalanced because of reduction on a single GPU. Therefore we chose reduce-scatter followed by all-gather (TabIIrow15), which is communication optimal.
-D8. The core algorithms in MPI implementations are originally implemented for CPUs. GPU-aware MPI (OpenMPI/MPICH) typically moves the data to CPU, runs the original algorithm as it is, and then moves the results back to GPU. Therefore they do not take advantage of the direct links across GPUs.
-D9. We can also run MVAPICH, but we rely on the available MPI implementations. Refer-to-W10. Regardless, we also show that there is little room for improvement over HiCCL as it already approaches theoretical limits (Figure 8). 
-D11. Striping is composed algebraically in SIV-Cpar.2, which can be generalized.
-D14. For example, Perlmutter has NVLinks, wher within nodes and SS-11 across nodes. NCCL may be faster within nodes and MPI may be faster across nodes.
-D16. Refer-to-D8. The core algorithms in GPU-aware MPI implementations are CPU based. It is hard to compare the ideas in HiCCL with GPU-aware MPI libraries.
-D17. Refer-to-W9.
-D18. [7] is criticized for costly code synthesis for collective communications, not using SMT in general. We will clarify in the final version.
+**W7.** Refer-to-**B**.
 
-Rev4
-HiCCL relies on non-blocking point-to-point functions of existing GPU-aware communication libraries to implement collective communications. The repository includes a header file that can be modified for integrating additional APIs. For example, a user has integrated the GASNet library as an additional option in one day. Similarly, NVSHMEM, UCX, or another desired library can be integrated as long as it has send/recv or put/get functions that provides a handle for waiting on remote completion.
+**W8.** We will review our terminology usage in the paper and make updates accordingly. We welcome any further feedback from the reviewer in this regard. Please consult our other answers when considering potential alignment with existing terms.
+
+**W9.** To our knowledge, we have included all the work that directly relates to our contribution in Section VII. We will include happens-before semantics in related work and cite the work pointed out by the reviewer. We are open to adding additional work based on reviewers’ suggestions.
+
+**W10.** MPI on our test systems are vendor-provided and are optimized/tested extensively for acceptance tests. We worked with facility staff and MPICH developers and set necessary tuning flags to maximize throughput. Refer-to-**D8**.
+
+**W11.** Refer-to-**B**.
+
+**R2.** Refer-to-**A**&**W9**.
+
+**R3.** a) Refer-to-**A** b) In practice, the collective performance will be affected by additional communication (if any) and so the theoretical bounds in Table III.
+
+**D1.** The endpoints of primitives (sendbuf/recvbuf) cannot overlap.
+
+**D6.** We chose the three primitives for their simplicity and expressivity. Alternative to multicast and reduction would allGatherv and reduceScatterv. However, the alternative has a more complex interface than the original.
+
+**D7.** We compare ring and tree for broadcast and reduce in Figure 8 to show the case where saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is not communication optimal (SIII-Bpar.3,SIV-Cpar.2). On the other hand, a reduce followed by a broadcast (TableIIrow14) is load imbalanced because of reduction on a single GPU. Therefore we chose reduce-scatter followed by all-gather (TabIIrow15), which is communication optimal.
+
+**D8.** The core algorithms in MPI implementations are originally implemented for CPUs. GPU-aware MPI (OpenMPI/MPICH) typically moves the data to CPU, runs the original algorithm as it is, and then moves the results back to GPU. Therefore they do not take advantage of the direct links across GPUs.
+
+**D9.** We can also run MVAPICH, but we rely on the available MPI implementations. Refer-to-W10. Regardless, we also show that there is little room for improvement over HiCCL as it already approaches theoretical limits (Figure 8). 
+
+**D11.*8 Striping is composed algebraically in SIV-Cpar.2, which can be generalized.
+
+**D14.** For example, Perlmutter has NVLinks, wher within nodes and SS-11 across nodes. NCCL may be faster within nodes and MPI may be faster across nodes.
+
+**D16.** Refer-to-**D8**. The core algorithms in GPU-aware MPI implementations are CPU based. It is hard to compare the ideas in HiCCL with GPU-aware MPI libraries.
+
+**D17.** Refer-to-**W9*8.
+
+**D18.** [7] is criticized for costly code synthesis for collective communications, not using SMT in general. We will clarify in the final version.
+
+**Rev4**
+
+- HiCCL relies on non-blocking point-to-point functions of existing GPU-aware communication libraries to implement collective communications. The repository includes a header file that can be modified for integrating additional APIs. For example, a user has integrated the GASNet library as an additional option in one day. Similarly, NVSHMEM, UCX, or another desired library can be integrated as long as it has send/recv or put/get functions that provides a handle for waiting on remote completion.
 Yes, please refer to SVI-C2par2. Our implementation exchanges remote memory handles (hipIpcMemHandle_t on Frontier and ze_ipc_mem_handle_t on Aurora) for utilizing interconnects across tiles and devices separately.
 Figure 9 shows message sizes on the X axis and throughput on the Y axis for four collective functions on Perlmutter. We observe similar results on other collectives and systems, although we cannot include them in the paper due to space constraints.
-We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. We found out the throughput is hampered with message sizes smaller than a MB.
+
+- We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. We found out the throughput is hampered with message sizes smaller than a MB.
 The allreduce algorithm(Fig.2) parallelizes the reduction, where each GPU is responsible to reduce a partial data. With thousands of GPUs, the work per GPU becomes so small that the network and GPU kernel launch latency that would not be significant otherwise becomes significant. It is a future research to find novel compositions to maintain large message sizes at scale. HiCCL’s compositional design will help productivity for developing interesting configurations. For example, one can try employing a single GPU per node for reducing partial data rather than all GPUs for delaying messages getting so small when scaling out.
 
-Rev5
-HiCCL’s potential use is to replace one or a few throughput-critical functions manually with the original API(Listing2). Similarly, a drop-in replacement can be achieved with a macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API.
-Refer-to-B.
+**Rev5** 
+
+- HiCCL’s potential use is to replace one or a few throughput-critical functions manually with the original API(Listing2). Similarly, a drop-in replacement can be achieved with a macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API.
+
+- Refer-to-**B**.
 
 We will address all minor typographical errors and corrections to figures and text in the final version.
