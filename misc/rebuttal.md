@@ -22,7 +22,7 @@ Our preliminary studies have shown that one should simply use MPI for latency-cr
 
 HiCCL’s API (Listing 2) is intended for library developers. Communication policies are informed by the developer. For example, the user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). The hierarchical tree structure is automatically built from the user input as explained in Sec.IV.
 
-**Rev1**
+***Rev1***
 
 1.-2. We apologize, the hierarchy in Listing 2 is not displayed in Fig.5. Listing 2 is for Aurora with six GPUs and each GPU has two dies. Therefore two nodes (numproc=24) are factored as {2,6,2}. For clarity, we will replace Fig.5(a) with a display of {2,6,2}.
 
@@ -30,13 +30,13 @@ HiCCL’s API (Listing 2) is intended for library developers. Communication poli
 
 4) The geometric mean of HiCCL’s speedup over MPI is based on throughput across four systems and eight collectives shown in Fig.8.
 
-**Rev2**
+***Rev2***
 
 All GPU systems that we know today have hierarchical networks.
 
 Background explains achievable bandwidth of 75% due to load imbalance across NICs, which manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
 
-**Rev3**
+***Rev3***
 
 **W1**,**W4**. Refer-to-**C**
 **W2**,**W3**,**W5**,**W6**,**R1**,**D12**,**D15**. Refer-to-**A**
@@ -55,7 +55,7 @@ Background explains achievable bandwidth of 75% due to load imbalance across NIC
 
 We will address all detailed comments in the paper, but due to space constraints cannot answer exhaustively.
 
-**Rev4**
+***Rev4***
 
 **New API integration**: The HiCCL code includes a header file that can be modified for integrating new APIs’s point-to-point functions. Once integrated, the new API can be chosen to be used at any level. For example, a user has integrated the GASNet library as an additional option in one day.
 
