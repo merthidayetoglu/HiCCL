@@ -27,8 +27,11 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **Rev2**
 
-1) The communication policies must be informed by the user through HiCCL’s API (e.g., Listing 2). The intra-node network may consist of multiple levels, e.g., the interconnect across the accelerator dies in a single device and the one across devices differ in Frontier and Aurora. The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). Moreover, the most performant library implementation in each level can be chosen (among the available) by simply changing the parameters. With a few educated guesses, the optimal parameters will most likely be found. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
-2) The network architecture with multi-accelerator nodes has converged to hierarchical structures. Specifically for targeting the most recent GPU systems, we designed specialized optimizations for hierarchical systems. Another typical topology is torus (e.g., Tofu), which requires different collective optimizations. The compositional design of HiCCL (with three primitives) can be applied directly to other topologies because of its machine-agnostic nature. However, the factorization of those primitives will be different, and must be specialized for the given network topology.
+- **Parameter selection:** The communication policies must be informed by the user through HiCCL’s API (Listing 2). The user must set the intra-node hierarchy according to the dies per device and devices per node as shown in Table V (bold). In our experience, one can determine the optimal configuration in only three guesses per system. The most effective optimization across nodes is the multi-NIC striping, which can be turned on by simply setting the number of stripes per node.
+
+- **Alternative topologies:** Most recent GPU systems have hierarchical networks, therefore we designed hierarchical optimizations. A less common topology is torus (e.g.,Tofu), which would require different optimizations. The machine-agnostic collective composition (with three primitives) can be applied directly to any topology. However, the factorization of the primitives will be different, and must be specialized for the given network topology.
+
+- **Round-robin GPU-to-NIC associations:** Background explains achievable bandwidth of 75% due to load imbalance across NICs. This manifests in Aurora as shown in Fig.8(d) with “not achievable” frames.
 
 **Rev3**
 
