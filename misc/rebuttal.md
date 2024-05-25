@@ -43,11 +43,13 @@ Background explains achievable bandwidth of 75% due to load imbalance across NIC
 
 **R2.** Refer-to-**A**&**W9**.
 
-**R3**. **a)** Refer-to-**A** **b)** Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
+**R3**. **a)** Refer-to-**A**. **b)** Collective performance will be impacted by additional communication, and so the theoretical bounds in Table III.
 
 **D7**. Fig.8 compares ring and tree for broadcast and reduce, showing that saturating bandwidth does not mean higher throughput. Similarly, we discuss that an all-reduce with reduction-only primitives is sub-optimal (Sec.III-Bpar.3,Cpar.2). Therefore we chose reduce-scatter followed by all-gather (TabIe2row15), which is communication optimal.
-D8,D16,W10. The core algorithms in GPU-aware MPI implementations are originally developed for CPUs. Current implementations (OpenMPI/MPICH) move the data to CPU, run an original algorithm as is, and then move the results back to GPU. Therefore they do not take advantage of the direct links across GPUs, and it is hard to compare the ideas in HiCCL. We confirmed our discussion with MPICH developers.
-D18. [7] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
+
+**D8**,**D16**,**W10**. The core algorithms in GPU-aware MPI implementations are originally developed for CPUs. Current implementations (OpenMPI/MPICH) move the data to CPU, run an original algorithm as is, and then move the results back to GPU. Therefore they do not take advantage of the direct links across GPUs, and it is hard to compare the ideas in HiCCL. We confirmed our discussion with MPICH developers.
+
+**D18**. [7] is criticized for costly code synthesis for collective communications. We will clarify in the final version.
 
 We will address all detailed comments in the paper, but due to space constraints cannot answer exhaustively.
 
