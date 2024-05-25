@@ -68,7 +68,7 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **D9.** We can also run MVAPICH, but we rely on the available MPI implementations. Refer-to-W10. Regardless, we also show that there is little room for improvement over HiCCL as it already approaches theoretical limits (Figure 8). 
 
-**D11.*8 Striping is composed algebraically in SIV-Cpar.2, which can be generalized.
+**D11.** Striping is composed algebraically in SIV-Cpar.2, which can be generalized.
 
 **D14.** For example, Perlmutter has NVLinks, wher within nodes and SS-11 across nodes. NCCL may be faster within nodes and MPI may be faster across nodes.
 
