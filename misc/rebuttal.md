@@ -55,17 +55,17 @@ Background explains achievable bandwidth of 75% due to load imbalance across NIC
 
 We will address all detailed comments in the paper, but due to space constraints cannot answer exhaustively.
 
-Rev4
+**Rev4**
 
-New API integration: The HiCCL code includes a header file that can be modified for integrating new APIs’s point-to-point functions. Once integrated, the new API can be chosen to be used at any level. For example, a user has integrated the GASNet library as an additional option in one day.
+**New API integration**: The HiCCL code includes a header file that can be modified for integrating new APIs’s point-to-point functions. Once integrated, the new API can be chosen to be used at any level. For example, a user has integrated the GASNet library as an additional option in one day.
 
-Intra-node/intra-device links: Please refer to SecVI-C2par2. Our implementation chooses appropriate copy engines for efficiently utilizing interconnect across dies and devices.
+**Intra-node/intra-device links**: Please refer to SecVI-C2par2. Our implementation chooses appropriate copy engines for efficiently utilizing interconnect across dies and devices.
 
-Buffer size vs. bandwidth: Fig.9 characterizes this for four collective functions on Perlmutter. We observe similar results on other collectives and systems; we can include such results given more space.
+**Buffer size vs. bandwidth**: Fig.9 characterizes this for four collective functions on Perlmutter. We observe similar results on other collectives and systems; we can include such results given more space.
 
-Scaling: We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. In allgather (Fig.2), each GPU is responsible to reduce partial data. With thousands of GPUs, the work per GPU becomes so small (<MB) that the network and GPU kernel launch latency becomes significant. It is future research to find novel compositions to maintain large message sizes at scale.
+**Scaling**: We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. In allgather (Fig.2), each GPU is responsible to reduce partial data. With thousands of GPUs, the work per GPU becomes so small (<MB) that the network and GPU kernel launch latency becomes significant. It is future research to find novel compositions to maintain large message sizes at scale.
 
-Rev5
+**Rev5**
 
 HiCCL integration: HiCCL’s typical use is replacing throughput-critical functions manually with the original API(Listing2). Alternatively, a drop-in replacement can be achieved with compiler macro. For legacy applications in Fortran, it is possible to create Fortran bindings of the C++ API. We developed Python bindings as a proof of concept.
 
