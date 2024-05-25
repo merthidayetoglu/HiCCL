@@ -77,12 +77,15 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **Rev4**
 
-- HiCCL relies on non-blocking point-to-point functions of existing GPU-aware communication libraries to implement collective communications. The repository includes a header file that can be modified for integrating additional APIs. For example, a user has integrated the GASNet library as an additional option in one day. Similarly, NVSHMEM, UCX, or another desired library can be integrated as long as it has send/recv or put/get functions that provides a handle for waiting on remote completion.
-Yes, please refer to SVI-C2par2. Our implementation exchanges remote memory handles (hipIpcMemHandle_t on Frontier and ze_ipc_mem_handle_t on Aurora) for utilizing interconnects across tiles and devices separately.
-Figure 9 shows message sizes on the X axis and throughput on the Y axis for four collective functions on Perlmutter. We observe similar results on other collectives and systems, although we cannot include them in the paper due to space constraints.
+1) HiCCL relies on non-blocking point-to-point functions of existing GPU-aware communication libraries to implement collective communications. The repository includes a header file that can be modified for integrating additional APIs. For example, a user has integrated the GASNet library as an additional option in one day. Similarly, NVSHMEM, UCX, or another desired library can be integrated as long as it has send/recv or put/get functions that provides a handle for waiting on remote completion.
 
-- We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. We found out the throughput is hampered with message sizes smaller than a MB.
-The allreduce algorithm(Fig.2) parallelizes the reduction, where each GPU is responsible to reduce a partial data. With thousands of GPUs, the work per GPU becomes so small that the network and GPU kernel launch latency that would not be significant otherwise becomes significant. It is a future research to find novel compositions to maintain large message sizes at scale. HiCCL’s compositional design will help productivity for developing interesting configurations. For example, one can try employing a single GPU per node for reducing partial data rather than all GPUs for delaying messages getting so small when scaling out.
+2) Yes, please refer to SVI-C2par2. Our implementation exchanges remote memory handles (hipIpcMemHandle_t on Frontier and ze_ipc_mem_handle_t on Aurora) for utilizing interconnects across tiles and devices separately.
+
+3) Figure 9 shows message sizes on the X axis and throughput on the Y axis for four collective functions on Perlmutter. We observe similar results on other collectives and systems, although we cannot include them in the paper due to space constraints.
+
+4) We performed the scaling experiment for the sake of stressing the network bandwidth with large messages and finding the limit where the scaling breaks down. We found out the throughput is hampered with message sizes smaller than a MB.
+
+5) The allreduce algorithm(Fig.2) parallelizes the reduction, where each GPU is responsible to reduce a partial data. With thousands of GPUs, the work per GPU becomes so small that the network and GPU kernel launch latency that would not be significant otherwise becomes significant. It is a future research to find novel compositions to maintain large message sizes at scale. HiCCL’s compositional design will help productivity for developing interesting configurations. For example, one can try employing a single GPU per node for reducing partial data rather than all GPUs for delaying messages getting so small when scaling out.
 
 **Rev5** 
 
