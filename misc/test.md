@@ -34,6 +34,8 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **W3,W5,R1,D12,D15.** Refer-to-**A**
 
+**W7,W11.** Refer-to-**B**.
+
 **W1.** Refer-to-**C**
 
 **W2.** Fence divides the collective into two steps. Each process wait for completion of the first step before starting the second, hence guaranteeing correctness. Refer-to-**A**.
@@ -42,15 +44,12 @@ The geometric mean of HiCCL’s speedup over MPI is calculated based on throughp
 
 **W6.** We exhaustively tested correctness with various 1) compositions, 2) parameters, 3) systems. We describe the verification tests in AD/AE appendix. Refer-to-**A**.
 
-**W7.** Refer-to-**B**.
 
 **W8.** We will review our terminology usage in the paper and make updates accordingly. We welcome any further feedback from the reviewer in this regard. Please consult our other answers when considering potential alignment with existing terms.
 
 **W9.** To our knowledge, we have included all the work that directly relates to our contribution in Section VII. We will include happens-before semantics in related work and cite the work pointed out by the reviewer. We are open to adding additional work based on reviewers’ suggestions.
 
 **W10.** MPI on our test systems are vendor-provided and are optimized/tested extensively for acceptance tests. We worked with facility staff and MPICH developers and set necessary tuning flags to maximize throughput. Refer-to-**D8**.
-
-**W11.** Refer-to-**B**.
 
 **R2.** Refer-to-**A**&**W9**.
 
