@@ -5,3 +5,5 @@ HiCCL is a hierarchical communication library. It has a compositional API for se
 HiCCL is based on [CommBench](https://github.com/merthidayetoglu/CommBench): a micro-benchmarking software for HPC networks. While HiCCL is a C++ layer for generating communication patterns, CommBench is the middleware for implementing the patterns on an actual machine.
 
 For questions and support, please send an email to merth@stanford.edu
+
+![Collective throughput.](misc/hiccl_collectives_new.pdf)
