@@ -1,6 +1,6 @@
 # HiCCL
 
-HiCCL is a compositional communication library for hierarchical GPU networks. It offers an API for composing collective functions using *multicast*, *reduction*, and *fence* primitives. These primitives are machine- and library-agnostic, and are defined across GPU endpoints. The compositionality decouples the higher-level communication design and machine-specific optimizations. This design is to provide productivity and portability when building custom collective functions.
+HiCCL is a compositional communication library for hierarchical GPU networks. It offers an API for composing collective functions using *multicast*, *reduction*, and *fence* primitives. These primitives are machine- and library-agnostic, and are defined across GPU endpoints. HiCCL's design principle is to decouple the higher-level communication design and machine-specific optimizations. This principle aims to improve productivity, portability, and performance when building custom collective functions.
 
 for separating the collective pattern design from the machine-specific optimizations. HiCCL optimizes the given high-level pattern for a specified machine that is described by the user. The implementation is achieved by using the point-to-point functions of the native communication libraries, such as IPC (put, get), MPI, NCCL, RCCL, and OneCCL.
 
