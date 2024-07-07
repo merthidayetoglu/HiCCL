@@ -28,12 +28,12 @@ int main() {
   allocate(sendbuf, count * numproc);
   allocate(recvbuf, count * numproc);
 
-  // reduce-scatter
+  // partial reductions (each GPU gathers count elements from all GPUs for reduction)
   for (int i = 0; i < numproc; i++)
     allreduce.add_reduction(sendbuf + i * count, recvbuf + i * count, count, HiCCL::all, i);
-  // express ordering
+  // express ordering of the primitives
   allreduce.add_fence();
-  // all-gather
+  // multicast partial results (each GPU sends count elements to all GPUs except itself)
   for (int i = 0; i < numproc; i++)
     allreduce.add_multicast(recvbuf + i * count, recvbuf + i * count, count, i, HiCCL::others);
 
