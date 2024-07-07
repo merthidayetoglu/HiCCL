@@ -15,26 +15,48 @@ The collective function is built within a persistent communicator. As an example
 
 #define T float;
 
+using namespace HiCCL
+
 int main() {
 
-  size_t numelements = 1e9 / sizeof(T); // 1 GB
+  size_t count = 1e9 / sizeof(T); // 1 GB
 
-  HiCCL::Comm<T> allreduce;
+  Comm<T> allreduce;
 
   T *sendbuf;
   T *recvbuf;
-  CommBench::allocate(sendbuf, numelements);
-  CommBench::allocate(recvbuf, numelements);
+  allocate(sendbuf, count * numproc);
+  allocate(recvbuf, count * numproc);
 
   // reduce-scatter
-  for (int i = 0; i < CommBench::numproc; i++)
-    allreduce.add_reduction(sendbuf + i * numelements / CommBench::numproc, recvbuf, numelements, HiCCL::all, i);
+  for (int i = 0; i < numproc; i++)
+    allreduce.add_reduction(sendbuf + i * count, recvbuf + i * count, count, HiCCL::all, i);
   // express ordering
   allreduce.add_fence();
   // all-gather
-  for (int i = 0; i < CommBench::numproc; i++)
-    allreduce.add_multicast(temp, buffer, numelements, i, HiCCL::all);
+  for (int i = 0; i < numproc; i++)
+    allreduce.add_multicast(recvbuf + i * count, recvbuf + i * count, count, i, HiCCL::others);
 
+  // optimization parameters
+  std::vector<int> hierarchy = {numproc / 12, 6, 2}; // hierarchical factorization
+  std::vector<library> lib = {MPI, IPC, IPC}; // implementation libraries in each level
+  int numstripe(1); // multi-rail striping (off)
+  int ring(1); // number of virtual ring nodes (off)
+  int pipeline(count / (1e6 / sizeof(T))); // MTU: 1 MB
+
+  // initialize
+  allreduce.init(hierarchy, lib, numstripe, ring, pipeline);
+
+  // repetetive communications
+  for (int iter = 0; iter < numiter; iter++) {
+    // ...
+    // nonblocking start
+    allreduce.start();
+    // ... overlap other things
+    // blocking wait
+    allreduce.wait();
+    // ...
+  }
 }
 
 ```
