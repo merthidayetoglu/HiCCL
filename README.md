@@ -7,6 +7,38 @@ HiCCL is based on [CommBench](https://github.com/merthidayetoglu/CommBench): a m
 
 ## API
 
+The collective function is built within a persistent communicator. As an example, below shows an in-place composition of the All-Reduce collective.
+
+```c++
+#define PORT_CUDA
+#include "hiccl.h"
+
+#define T float;
+
+int main() {
+
+  size_t numelements = 1e9 / sizeof(T); // 1 GB
+
+  HiCCL::Comm<T> allreduce;
+
+  T *sendbuf;
+  T *recvbuf;
+  CommBench::allocate(sendbuf, numelements);
+  CommBench::allocate(recvbuf, numelements);
+
+  // reduce-scatter
+  for (int i = 0; i < CommBench::numproc; i++)
+    allreduce.add_reduction(sendbuf + i * numelements / CommBench::numproc, recvbuf, numelements, HiCCL::all, i);
+  // express ordering
+  allreduce.add_fence();
+  // all-gather
+  for (int i = 0; i < CommBench::numproc; i++)
+    allreduce.add_multicast(temp, buffer, numelements, i, HiCCL::all);
+
+}
+
+```
+
 ![Collective throughput.](misc/hiccl_collectives_new.png)
 
 For questions and support, please send an email to merth@stanford.edu
