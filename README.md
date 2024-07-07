@@ -6,4 +6,4 @@ HiCCL is based on [CommBench](https://github.com/merthidayetoglu/CommBench): a m
 
 For questions and support, please send an email to merth@stanford.edu
 
-![Collective throughput.](misc/hiccl_collectives_new.pdf)
+[Collective throughput.](misc/hiccl_collectives_new.pdf)
