@@ -2,6 +2,9 @@
 
 **Reviever 2**
 
+**Node placement**
+All experiments are conducted in a single SLURM session, resulting in consistent node placement across scaling. Thus all experiments use the same layout between runs. Further control on node placement is challenging without the assistance of administration. We will add this to the paper.
+
 **Reviever 3**
 
 **Reviever 4**
@@ -13,7 +16,7 @@ HiCCL’s is designed for easy integration of new library APIs for mixed-library
 The key contribution of this work is the abstraction of the communication hierarchies. HiCCL takes inter-tile and inter-GPU interconnects into account as explicitly stated in the 4th sentence of 2nd paragraph of Section VI. C. 2). The overall hierarchy is set using a vector as in Line 13 of Listing 2. In the Aurora example, the last two elements {6, 2} represent six devices (connected with XeLinks) with two tiles (connected with MDFI). In evaluation, we will include this detail and refer to Line 13 of Listing 2 for convenience of the reader.
 
 **Message size vs. bandwidth.**
-We show the throughput for various message sizes in Figure 9 for a few representative cases. Other systems / collectives look similar, but omitted because of space constraints.
+We show the throughput for various message sizes in Figure 9 for a few representative cases. Since other systems / collectives show similar curves, we omitted them from the evaluation section for brevity.
 
 **Strong scaling.**
 We did not choose the message sizes based on any specific application. We chose them for the sake of stressing the network bandwidth with large messages and to investigate if we can reach the theoretical limits.
