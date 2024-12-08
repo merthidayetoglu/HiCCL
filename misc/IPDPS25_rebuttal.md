@@ -7,6 +7,10 @@ All experiments are conducted in a single SLURM session, resulting in consistent
 
 **Reviever 3**
 
+**Comparison with NCCL.**
+We agree with the reviewer that NCCL is faster on medium to large node counts, it is a vendor-specific solution. Whereas HiCCL manages to reach competitive performance while being portable across multiple vendors and architectures.
+
+
 **Reviever 4**
 
 **Integration of a new API.**
