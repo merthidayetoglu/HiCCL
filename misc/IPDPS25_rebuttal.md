@@ -1,9 +1,9 @@
 **Common Questions**
 
-**Q1: Performance at large scale** 
+**Q1: Performance at large scale (Reviewers 2, 3, 4)** 
 We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC strong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
 
-**Reviever 1**
+**Reviewer 1**
 
 **Race condition in single step:**
 HiCCL allows composition of collective communications in multiple steps as explained in S3-C. Each step is composed of reduction and multicast primitives, that should not write to the same output. In other words, each output element must be updated by a single primitive.
@@ -14,17 +14,17 @@ The data type is templatized, and passed when initializing a communicator as sho
 **Theoretical throughput:**
 The theoretical throughputs in Figure 8, are based on Table III. These formulas are based on B/W = dg/t, where d is the volume of each point-to-point communication, g is the number of participating GPUs, and t is the elapsed time. Since all-to-all involves more number of point-to-point communications than other collectives, all-to-all would take the most elapsed time with the same d. Therefore all-to-all's algorithmic (theoretical) throughput maps to the lowest among all collectives.
 
-**Reviever 2**
+**Reviewer 2**
 
 **Node placement:**
 All experiments are conducted in a single SLURM session, resulting in consistent node placement across scaling. Thus all experiments use the same layout between runs. Further control on node placement is challenging without the assistance of administration. We will add this to the paper.
 
-**Reviever 3**
+**Reviewer 3**
 
 **Comparison with NCCL:**
 As stated shown in Figure 10(a), NCCL achieves a higher throughput for node counts larger than four. We agree with the reviewer that NCCL is faster on medium to large node counts, it is a vendor-specific solution. Whereas HiCCL manages to reach competitive performance while being portable across multiple vendors and architectures. 
 
-**Reviever 4**
+**Reviewer 4**
 
 **Integration of a new API:**
 HiCCL’s is designed for easy integration of new library APIs for mixed-library implementation. The collectives are ultimately implemented with point-to-point functions, and HiCCL takes advantage of non-blocking point-to-point API of a new communication library via a simplified interface. We used that interface to integrate the existing libraries–NCCL, MPI, IPC (CUDA/HIP/OneAPI). In fact, we have recently integrated GASNet for non-MPI applications in one day of engineering effort. In the end, the user can choose whichever library they want in a particular hierarchy level as in Line 14 of Listing 2.
