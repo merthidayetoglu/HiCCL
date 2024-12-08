@@ -1,3 +1,8 @@
+**Common Questions**
+
+**Scale:**
+We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work.
+
 **Reviever 1**
 
 **Single step vs. multi step:**
