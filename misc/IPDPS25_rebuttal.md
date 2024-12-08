@@ -14,7 +14,7 @@ HiCCL allows composition of collective communications in multiple steps as expla
 The data type is templatized, and passed when initializing a communicator as shown in Line 3 of Listing 3. Derived data types can be passed as a structure, and the reduction operation can be extended for the derived data type. In this extent, HiCCL can be used as a drop-in replacement for traditional data types, but it would require some additional engineering when it comes to derived data types.
 
 **Theoretical throughput:**
-Explained in IV b)... and why is it possible…
+The theoretical throughputs in Figure 8, are based on Table III. These formulas are based on B/W = dg/t, where d is the volume of each point-to-point communication (not the communication buffer) in a collective.
 
 **Reviever 2**
 
