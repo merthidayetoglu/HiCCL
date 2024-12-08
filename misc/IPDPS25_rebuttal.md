@@ -1,16 +1,14 @@
 **Common Questions**
 
-**Scale (Revivevers 2, 3, 4):**
-We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work.
+**Q1: Performance at large scale** 
+We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. 
 
-As stated  in …, NCCL achieves a higher throughput for node counts larger than four. Nevertheless, some HPC workloads as well as ML inference will still benefit from this approach. For example, large language models typically fit into 1, 2, 4, and eight nodes, and inference production is typically.
-
-Cloud
+As stated shown in Figure 10(a), NCCL achieves a higher throughput for node counts larger than four. Nevertheless, some HPC workloads as well as ML inference will still benefit from this approach. For example, large language models in production typically fit into a few nodes.
 
 **Reviever 1**
 
 **Single step vs. multi step:**
-The single-step collective consists of primitives that do not affect each other’s output, thus are free of race condition.
+HiCCL allows composition of collective communications in multiple steps. Each step is composed of primitives, that should not write to the same output. We used race condition in the sense that each output must be updated by a single primitive.
 
 **Derived data types:**
 HiCCL can be used as a drop-in replacement for traditional data types, but it would require some additional engineering when it comes to derived data types.
