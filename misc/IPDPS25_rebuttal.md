@@ -1,7 +1,7 @@
 **Common Questions**
 
 **Q1: Performance at large scale (Reviewers 2, 3, 4)** 
-We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC strong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
+We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCL could be extended to implement latency oriented optimizations as a potential future direction. However HPC strong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
 
 **Reviewer 1**
 
