@@ -1,10 +1,11 @@
-***Rev1***
+**Reviever 1**
 
-***Rev2***
+**Reviever 2**
 
-***Rev3***
+**Reviever 3**
 
-***Rev4***
+**Reviever 4**
+
 **Integration of a new API.**
 HiCCL’s is designed for easy integration of new library APIs for mixed-library implementation. The collectives are ultimately implemented with point-to-point functions, and HiCCL takes advantage of non-blocking point-to-point API of a new communication library via a simplified interface. We used that interface to integrate the existing libraries–NCCL, MPI, IPC (CUDA/HIP/OneAPI). In fact, we have recently integrated GASNet for non-MPI applications in one day of engineering effort. In the end, the user can choose whichever library they want in a particular hierarchy level as in Line 14 of Listing 2.
 
