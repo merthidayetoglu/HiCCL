@@ -3,6 +3,10 @@
 **Scale (Revivevers 2, 3, 4):**
 We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work.
 
+As stated  in …, NCCL achieves a higher throughput for node counts larger than four. Nevertheless, some HPC workloads as well as ML inference will still benefit from this approach. For example, large language models typically fit into 1, 2, 4, and eight nodes, and inference production is typically.
+
+Cloud
+
 **Reviever 1**
 
 **Single step vs. multi step:**
