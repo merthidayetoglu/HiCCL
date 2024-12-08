@@ -1,9 +1,7 @@
 **Common Questions**
 
 **Q1: Performance at large scale** 
-We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. 
-
-As stated shown in Figure 10(a), NCCL achieves a higher throughput for node counts larger than four. Nevertheless, some HPC workloads as well as ML inference will still benefit from this approach. For example, large language models in production typically fit into a few nodes.
+We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
 
 **Reviever 1**
 
@@ -24,8 +22,7 @@ All experiments are conducted in a single SLURM session, resulting in consistent
 **Reviever 3**
 
 **Comparison with NCCL:**
-We agree with the reviewer that NCCL is faster on medium to large node counts, it is a vendor-specific solution. Whereas HiCCL manages to reach competitive performance while being portable across multiple vendors and architectures.
-
+As stated shown in Figure 10(a), NCCL achieves a higher throughput for node counts larger than four. We agree with the reviewer that NCCL is faster on medium to large node counts, it is a vendor-specific solution. Whereas HiCCL manages to reach competitive performance while being portable across multiple vendors and architectures. 
 
 **Reviever 4**
 
