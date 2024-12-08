@@ -1,7 +1,7 @@
 **Common Questions**
 
 **Q1: Performance at large scale** 
-We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC stong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
+We are explicit about the limitation of our current approach beyond 256 Nodes in section VI.E, and mention that HiCCl could be extended to implement latency oriented optimizations as a potential future direction. However HPC strong scaling workloads as well as ML inference leverage lower than 256 nodes would still benefit from this work. For example, large language models in production typically fit into a few nodes.
 
 **Reviever 1**
 
@@ -36,7 +36,7 @@ The key contribution of this work is the abstraction of the communication hierar
 We show the throughput for various message sizes in Figure 9 for a few representative cases. Since other systems / collectives show similar curves, we omitted them from the evaluation section for brevity.
 
 **Strong scaling:**
-We did not choose the message sizes based on any specific application. We chose them for the sake of stressing the network bandwidth with large messages and to investigate if we can reach the theoretical limits.
+We did not choose the message sizes based on any specific application. We chose them for the sake of stressing the network bandwidth with large messages and to investigate if we can reach the theoretical limits. We observe that throughput-oriented optimizations break down with large number of nodes.
 
 **Latency:**
 In allgather (Fig.2), each GPU is responsible to reduce partial data. With thousands of GPUs, the work per GPU becomes so small (<MB) that the network and GPU kernel launch latency becomes significant. It is future research to find novel compositions to maintain large message sizes at scale.
