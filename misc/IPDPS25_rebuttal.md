@@ -7,11 +7,11 @@ As stated shown in Figure 10(a), NCCL achieves a higher throughput for node coun
 
 **Reviever 1**
 
-**Single step vs. multi step:**
-HiCCL allows composition of collective communications in multiple steps. Each step is composed of primitives, that should not write to the same output. We used race condition in the sense that each output must be updated by a single primitive.
+**Race condition in single step:**
+HiCCL allows composition of collective communications in multiple steps as explained in S3-C. Each step is composed of reduction and multicast primitives, that should not write to the same output. In other words, each output element must be updated by a single primitive.
 
 **Derived data types:**
-HiCCL can be used as a drop-in replacement for traditional data types, but it would require some additional engineering when it comes to derived data types.
+The data type is templatized, and passed when initializing a communicator as shown in Line 3 of Listing 3. Derived data types can be passed as a structure, and the reduction operation can be extended for the derived data type. In this extent, HiCCL can be used as a drop-in replacement for traditional data types, but it would require some additional engineering when it comes to derived data types.
 
 **Theoretical throughput:**
 Explained in IV b)... and why is it possible…
